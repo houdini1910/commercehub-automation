@@ -22,14 +22,30 @@ IMPORTANTE:
 import sys
 import time
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
+import selenium
+import selenium.webdriver
+import selenium.webdriver.chrome
+import selenium.webdriver.chrome.service
+import selenium.webdriver.chrome.options
+import selenium.webdriver.chrome.webdriver
+import selenium.webdriver.common
+import selenium.webdriver.common.by
+import selenium.webdriver.remote
+import selenium.webdriver.remote.webdriver
+import selenium.webdriver.remote.webelement
+import selenium.webdriver.support
+import selenium.webdriver.support.expected_conditions
+import selenium.webdriver.support.ui
+
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
     NoSuchElementException,
     TimeoutException,
@@ -40,63 +56,29 @@ from webdriver_manager.chrome import ChromeDriverManager
 from parse_html import parse_reporte, mostrar_resumen
 import config
 
+def obtener_ruta_brave() -> str:
+    rutas = [
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+    ]
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        rutas.append(str(Path(local_app_data) / "BraveSoftware" / "Brave-Browser" / "Application" / "brave.exe"))
+    
+    for r in rutas:
+        if os.path.exists(r):
+            return r
+    return r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 
-# ─────────────────────────────────────────────
-#  CONFIGURACION
-# ─────────────────────────────────────────────
-
-# Texto exacto que aparece en el dropdown de Shipping Method para UPS Ground.
-# Si el portal usa un texto ligeramente diferente, cambialo aqui.
-UPS_GROUND_TEXTO = "UPS Ground"
-
-# Tiempo maximo (segundos) para esperar a que aparezca un elemento en la pagina.
-TIMEOUT_SEGUNDOS = 15
-
-# Carpeta donde se guardan los logs
-CARPETA_LOGS = Path("logs")
-
-
-# ─────────────────────────────────────────────
-#  LOGGING
-# ─────────────────────────────────────────────
-
-def configurar_log() -> logging.Logger:
-    CARPETA_LOGS.mkdir(exist_ok=True)
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    ruta_log = CARPETA_LOGS / f"autoship_{fecha_hoy}.txt"
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%H:%M:%S",
-        handlers=[
-            logging.FileHandler(ruta_log, encoding="utf-8"),
-            logging.StreamHandler(sys.stdout),
-        ],
-    )
-    log = logging.getLogger("autoship")
-    log.info(f"Log guardado en: {ruta_log}")
-    return log
-
-
-# ─────────────────────────────────────────────
-#  SELENIUM — ABRIR BRAVE
-# ─────────────────────────────────────────────
-
-# Ruta al ejecutable de Brave (ruta estandar en Windows)
-BRAVE_PATH = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+BRAVE_PATH = obtener_ruta_brave()
 
 def abrir_brave() -> webdriver.Chrome:
     """Abre una ventana de Brave controlada por el script."""
-    opciones = webdriver.ChromeOptions()
-    # Apuntar al ejecutable de Brave
-    opciones.binary_location = BRAVE_PATH
-    # Evitar que Brave se cierre al terminar el script
+    opciones = ChromeOptions()
+    opciones.binary_location = obtener_ruta_brave()
     opciones.add_experimental_option("detach", True)
-    # Deshabilitar mensaje de "Brave is being controlled by automated software"
     opciones.add_experimental_option("excludeSwitches", ["enable-automation"])
     opciones.add_experimental_option("useAutomationExtension", False)
-    # Aumentar tamano de ventana para mejor visibilidad
     opciones.add_argument("--start-maximized")
 
     service = Service(ChromeDriverManager().install())
@@ -226,40 +208,89 @@ def encontrar_campo(driver: webdriver.Chrome, selectores: list[tuple], nombre_ca
 
 def rellenar_formulario(driver: webdriver.Chrome, orden: dict, log: logging.Logger) -> bool:
     """
-    Rellena los campos Invoice#, Tracking# y selecciona UPS Ground en el formulario.
+    Verifica que el PO Number exista en la página web actual antes de rellenar.
+    Rellena Invoice# y Tracking# en los campos correspondientes.
     
     Args:
         driver: Instancia del navegador.
-        orden:  Diccionario con 'invoice' y 'tracking'.
+        orden:  Diccionario con 'po', 'invoice' y 'tracking'.
         log:    Logger.
     
     Returns:
-        True si todos los campos se rellenaron, False si hubo algun problema.
+        True si los campos obligatorios se rellenaron con exito, False si hubo problema o PO no coincide.
     """
+    po_target = orden["po"]
+    invoice_val = orden["invoice"]
+    tracking_val = orden["tracking"]
+
+    log.info(f"  🔍 Verificando PO Number '{po_target}' en la página actual...")
+
+    # ── Paso 0: Validar si el PO Number esta en la pagina ────────────────────
+    po_elementos = driver.find_elements(By.XPATH, f"//*[contains(text(), '{po_target}')]")
+    
+    if not po_elementos:
+        # Verificacion secundaria por codigo fuente
+        if po_target not in driver.page_source:
+            log.error(f"  ❌ ERROR DE COINCIDENCIA: El PO Number '{po_target}' NO fue encontrado en la página actual.")
+            log.error(f"     SE OMITIÓ EL LLENADO de esta orden para no ingresar datos erróneos.")
+            return False
+
+    log.info(f"  ✅ Coincidencia confirmada para PO Number '{po_target}'.")
+
+    # Intentar obtener el contenedor específico para esta orden si hay varios en pantalla
+    search_scope = driver
+    if po_elementos:
+        try:
+            # Buscar el contenedor padre (tabla, formulario o div) mas cercano
+            contenedor = po_elementos[0].find_element(
+                By.XPATH, "./ancestor::table[contains(@class,'form') or contains(@id,'') or position()=1] | ./ancestor::div[contains(@class,'order') or contains(@id,'order') or position()=1]"
+            )
+            search_scope = contenedor
+        except Exception:
+            search_scope = driver
+
     exito = True
 
     # ── CAMPO: Invoice Number ──────────────────────────────────────────────
-    # Intentamos varios selectores comunes del portal CommerceHub DSM
     selectores_invoice = [
         (By.NAME,  "invoiceNumber"),
         (By.NAME,  "invoice_number"),
         (By.NAME,  "invoiceNum"),
         (By.ID,    "invoiceNumber"),
         (By.ID,    "invoice_number"),
+        (By.XPATH, ".//input[contains(@name,'invoice') and not(contains(@name,'total'))]"),
+        (By.XPATH, ".//label[contains(text(),'Invoice')]/following::input[1]"),
+        (By.XPATH, ".//td[contains(text(),'Invoice')]/following-sibling::td/input"),
         (By.XPATH, "//input[contains(@name,'invoice') and not(contains(@name,'total'))]"),
-        (By.XPATH, "//label[contains(text(),'Invoice Number')]/following::input[1]"),
-        (By.XPATH, "//td[contains(text(),'Invoice Number')]/following-sibling::td/input"),
+        (By.XPATH, "//td[contains(text(),'Invoice')]/following-sibling::td/input"),
     ]
-    campo_invoice = encontrar_campo(driver, selectores_invoice, "Invoice Number", log)
+    
+    campo_invoice = None
+    for by, valor in selectores_invoice:
+        try:
+            if search_scope != driver and valor.startswith(".//"):
+                elementos = search_scope.find_elements(by, valor)
+                if elementos:
+                    campo_invoice = elementos[0]
+                    break
+            else:
+                elementos = driver.find_elements(by, valor)
+                if elementos:
+                    campo_invoice = elementos[0]
+                    break
+        except Exception:
+            continue
+
     if campo_invoice:
         try:
             campo_invoice.clear()
-            campo_invoice.send_keys(orden["invoice"])
-            log.info(f"  ✅ Invoice Number: {orden['invoice']}")
+            campo_invoice.send_keys(invoice_val)
+            log.info(f"  ✅ Invoice Number ingresado: {invoice_val}")
         except ElementNotInteractableException:
-            log.error(f"  ❌ El campo Invoice Number existe pero no es interactuable.")
+            log.error(f"  ❌ Campo Invoice Number no interactuable.")
             exito = False
     else:
+        log.error(f"  ❌ No se encontró el campo Invoice Number para PO {po_target}.")
         exito = False
 
     # ── CAMPO: Tracking Number ─────────────────────────────────────────────
@@ -270,23 +301,43 @@ def rellenar_formulario(driver: webdriver.Chrome, orden: dict, log: logging.Logg
         (By.NAME,  "shipTracking"),
         (By.ID,    "trackingNumber"),
         (By.ID,    "tracking_number"),
+        (By.XPATH, ".//input[contains(@name,'tracking') or contains(@name,'Tracking')]"),
+        (By.XPATH, ".//label[contains(text(),'Tracking')]/following::input[1]"),
+        (By.XPATH, ".//td[contains(text(),'Tracking')]/following-sibling::td/input"),
         (By.XPATH, "//input[contains(@name,'tracking') or contains(@name,'Tracking')]"),
-        (By.XPATH, "//label[contains(text(),'Tracking Number')]/following::input[1]"),
-        (By.XPATH, "//td[contains(text(),'Tracking Number')]/following-sibling::td/input"),
+        (By.XPATH, "//td[contains(text(),'Tracking')]/following-sibling::td/input"),
     ]
-    campo_tracking = encontrar_campo(driver, selectores_tracking, "Tracking Number", log)
+
+    campo_tracking = None
+    for by, valor in selectores_tracking:
+        try:
+            if search_scope != driver and valor.startswith(".//"):
+                elementos = search_scope.find_elements(by, valor)
+                if elementos:
+                    campo_tracking = elementos[0]
+                    break
+            else:
+                elementos = driver.find_elements(by, valor)
+                if elementos:
+                    campo_tracking = elementos[0]
+                    break
+        except Exception:
+            continue
+
     if campo_tracking:
         try:
             campo_tracking.clear()
-            campo_tracking.send_keys(orden["tracking"])
-            log.info(f"  ✅ Tracking Number: {orden['tracking']}")
+            campo_tracking.send_keys(tracking_val)
+            log.info(f"  ✅ Tracking Number ingresado: {tracking_val}")
         except ElementNotInteractableException:
-            log.error(f"  ❌ El campo Tracking Number existe pero no es interactuable.")
+            log.error(f"  ❌ Campo Tracking Number no interactuable.")
             exito = False
     else:
+        log.error(f"  ❌ No se encontró el campo Tracking Number para PO {po_target}.")
         exito = False
 
-    # ── DROPDOWN: Shipping Method → UPS Ground ────────────────────────────
+    # ── DROPDOWN: Shipping Method ──────────────────────────────────────────
+    ship_via_target = orden.get("ship_via", UPS_GROUND_TEXTO) or UPS_GROUND_TEXTO
     selectores_dropdown = [
         (By.NAME,  "shipMethod"),
         (By.NAME,  "shippingMethod"),
@@ -294,34 +345,129 @@ def rellenar_formulario(driver: webdriver.Chrome, orden: dict, log: logging.Logg
         (By.NAME,  "carrierMethod"),
         (By.ID,    "shipMethod"),
         (By.ID,    "shippingMethod"),
+        (By.XPATH, ".//select[contains(@name,'ship') or contains(@name,'Ship') or contains(@name,'method')]"),
+        (By.XPATH, ".//label[contains(text(),'Shipping Method')]/following::select[1]"),
+        (By.XPATH, ".//td[contains(text(),'Shipping Method')]/following-sibling::td/select"),
         (By.XPATH, "//select[contains(@name,'ship') or contains(@name,'Ship') or contains(@name,'method')]"),
-        (By.XPATH, "//label[contains(text(),'Shipping Method')]/following::select[1]"),
-        (By.XPATH, "//td[contains(text(),'Shipping Method')]/following-sibling::td/select"),
     ]
-    campo_dropdown = encontrar_campo(driver, selectores_dropdown, "Shipping Method (dropdown)", log)
+    
+    campo_dropdown = None
+    for by, valor in selectores_dropdown:
+        try:
+            if search_scope != driver and valor.startswith(".//"):
+                elementos = search_scope.find_elements(by, valor)
+                if elementos:
+                    campo_dropdown = elementos[0]
+                    break
+            else:
+                elementos = driver.find_elements(by, valor)
+                if elementos:
+                    campo_dropdown = elementos[0]
+                    break
+        except Exception:
+            continue
+
     if campo_dropdown:
         try:
             select = Select(campo_dropdown)
-            # Intentar seleccionar por texto visible
+            encontrado = False
+            # 1. Coincidencia exacta
             try:
-                select.select_by_visible_text(UPS_GROUND_TEXTO)
-                log.info(f"  ✅ Shipping Method: {UPS_GROUND_TEXTO}")
+                select.select_by_visible_text(ship_via_target)
+                log.info(f"  ✅ Shipping Method seleccionado: {ship_via_target}")
+                encontrado = True
             except Exception:
-                # Si falla, listar las opciones disponibles para diagnostico
-                opciones = [opt.text for opt in select.options]
-                log.warning(f"  ⚠️  No se encontro '{UPS_GROUND_TEXTO}' en el dropdown.")
-                log.warning(f"      Opciones disponibles: {opciones}")
-                # Intentar con texto parcial
+                pass
+
+            # 2. Coincidencia por texto parcial
+            if not encontrado:
+                for opcion in select.options:
+                    opt_txt = opcion.text.strip()
+                    if ship_via_target.lower() in opt_txt.lower() or opt_txt.lower() in ship_via_target.lower():
+                        select.select_by_visible_text(opcion.text)
+                        log.info(f"  ✅ Shipping Method (parcial): {opcion.text}")
+                        encontrado = True
+                        break
+
+            # 3. Fallback a UPS Ground si la meta es cliente 08461
+            if not encontrado:
                 for opcion in select.options:
                     if "ups" in opcion.text.lower() and "ground" in opcion.text.lower():
                         select.select_by_visible_text(opcion.text)
-                        log.info(f"  ✅ Shipping Method (coincidencia parcial): {opcion.text}")
+                        log.info(f"  ✅ Shipping Method (fallback UPS Ground): {opcion.text}")
+                        encontrado = True
                         break
+
+            if not encontrado:
+                opciones = [opt.text for opt in select.options]
+                log.warning(f"  ⚠️  No se encontró '{ship_via_target}' en el dropdown. Opciones: {opciones}")
         except ElementNotInteractableException:
-            log.error(f"  ❌ El dropdown de Shipping Method no es interactuable.")
-            exito = False
+            log.warning(f"  ⚠️  Dropdown de Shipping Method no es interactuable (campo de solo lectura).")
     else:
-        exito = False
+        log.warning(f"  ⚠️  Dropdown de Shipping Method no encontrado en el formulario.")
+
+    # ── CAMPO: Ship Quantity (copiar desde Quantity Remaining) ─────────────
+    try:
+        inputs_rellenados = 0
+        # Buscar tablas de items con cabecera QUANTITY REMAINING o SHIP QUANTITY
+        tablas_items = search_scope.find_elements(
+            By.XPATH, ".//table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP')]]"
+        )
+        if not tablas_items and search_scope != driver:
+            tablas_items = driver.find_elements(
+                By.XPATH, "//table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP')]]"
+            )
+
+        if tablas_items:
+            for tabla in tablas_items:
+                filas = tabla.find_elements(By.XPATH, ".//tr")
+                for fila in filas:
+                    celdas = fila.find_elements(By.XPATH, ".//td")
+                    if len(celdas) >= 2:
+                        # Buscar si hay alguna celda con numero (Quantity Remaining)
+                        texto_rem = ""
+                        for c in celdas:
+                            txt = c.text.strip()
+                            if txt.isdigit():
+                                texto_rem = txt
+                                break
+                        
+                        if texto_rem:
+                            inputs_en_fila = fila.find_elements(By.XPATH, ".//input")
+                            if inputs_en_fila:
+                                input_ship = inputs_en_fila[0]
+                                try:
+                                    input_ship.clear()
+                                    input_ship.send_keys(texto_rem)
+                                    inputs_rellenados += 1
+                                    log.info(f"  ✅ Ship Quantity: {texto_rem} (de Quantity Remaining)")
+                                except Exception as e_inp:
+                                    log.warning(f"  ⚠️ No se pudo escribir Ship Quantity: {e_inp}")
+        
+        # Fallback si no se hallo tabla con cabecera: buscar inputs de cantidad directamente
+        if inputs_rellenados == 0:
+            inputs_qty = search_scope.find_elements(
+                By.XPATH, ".//td[contains(@class,'ship') or position()=2]//input | .//input[contains(@name,'ship') or contains(@name,'qty') or contains(@name,'Qty')]"
+            )
+            for inp in inputs_qty:
+                try:
+                    tr = inp.find_element(By.XPATH, "./ancestor::tr[1]")
+                    tds = tr.find_elements(By.XPATH, ".//td")
+                    for td in tds:
+                        txt = td.text.strip()
+                        if txt.isdigit():
+                            inp.clear()
+                            inp.send_keys(txt)
+                            inputs_rellenados += 1
+                            log.info(f"  ✅ Ship Quantity (fallback): {txt}")
+                            break
+                except Exception:
+                    continue
+
+        if inputs_rellenados == 0:
+            log.warning("  ⚠️ No se encontraron campos de Ship Quantity en esta orden.")
+    except Exception as e_qty:
+        log.warning(f"  ⚠️ Error procesando Ship Quantity: {e_qty}")
 
     return exito
 

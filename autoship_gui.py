@@ -10,14 +10,37 @@ Para regenerar el .exe (PowerShell):
 """
 
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, simpledialog
 
-# Imports de Selenium al nivel superior para que PyInstaller los detecte
+import os
+import sys
+import time
+import queue
+import threading
+from datetime import datetime
+from pathlib import Path
+
+# Imports completos de Selenium para PyInstaller
+import selenium
+import selenium.webdriver
+import selenium.webdriver.chrome
+import selenium.webdriver.chrome.service
+import selenium.webdriver.chrome.options
+import selenium.webdriver.chrome.webdriver
+import selenium.webdriver.common
+import selenium.webdriver.common.by
+import selenium.webdriver.remote
+import selenium.webdriver.remote.webdriver
+import selenium.webdriver.remote.webelement
+import selenium.webdriver.support
+import selenium.webdriver.support.expected_conditions
+import selenium.webdriver.support.ui
+
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
     NoSuchElementException,
     TimeoutException,
@@ -25,61 +48,40 @@ from selenium.common.exceptions import (
 )
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
-import threading
-import queue
-import sys
-import time
-from datetime import datetime
-from pathlib import Path
+
+from parse_html import parse_reporte, CLIENTE_OBJETIVO
+from crear_reporte_prueba import generar_html_prueba
+
+def obtener_ruta_brave() -> str:
+    """Retorna la ruta al ejecutable de Brave encontrada en el sistema."""
+    rutas = [
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+    ]
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        rutas.append(str(Path(local_app_data) / "BraveSoftware" / "Brave-Browser" / "Application" / "brave.exe"))
+    
+    for r in rutas:
+        if os.path.exists(r):
+            return r
+    return r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  CONFIGURACION (equivalente a config.py — editar aqui si cambian datos)
+#  CONFIGURACION
 # ─────────────────────────────────────────────────────────────────────────────
 
 EMAIL      = "Sammy@josmo.com"
 PASSWORD   = "Panda@2025"
 URL_PORTAL = "https://dsm.commercehub.com"
 
-BRAVE_PATH = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+BRAVE_PATH = obtener_ruta_brave()
 CLIENTE_OBJETIVO = "08461"
 UPS_GROUND_TEXTO = "UPS Ground"
 TIMEOUT_SEG = 15
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  PARSER HTM (equivalente a parse_html.py)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def parse_reporte(ruta_htm: str) -> list:
-    """Lee el .htm y retorna lista de ordenes del cliente CLIENTE_OBJETIVO."""
-    with open(ruta_htm, "r", encoding="utf-8", errors="ignore") as f:
-        contenido = f.read()
-
-    soup  = BeautifulSoup(contenido, "html.parser")
-    tabla = soup.find("table", {"id": "Table1"}) or soup.find("table")
-
-    if not tabla:
-        raise ValueError("No se encontro ninguna tabla en el archivo.")
-
-    ordenes = []
-    for fila in tabla.find_all("tr")[1:]:
-        celdas = fila.find_all("td")
-        if len(celdas) < 8:
-            continue
-        textos = [c.get_text(strip=True) for c in celdas]
-        if CLIENTE_OBJETIVO not in textos:
-            continue
-        try:
-            idx_cliente = textos.index(CLIENTE_OBJETIVO)
-            invoice  = textos[idx_cliente + 1] if idx_cliente + 1 < len(textos) else ""
-            tracking = textos[idx_cliente + 2] if idx_cliente + 2 < len(textos) else ""
-            po       = textos[0]
-            if invoice or tracking:
-                ordenes.append({"po": po, "invoice": invoice, "tracking": tracking})
-        except (IndexError, ValueError):
-            continue
-
-    return ordenes
+from parse_html import parse_reporte, CLIENTE_OBJETIVO
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -161,13 +163,24 @@ class CommerceHubApp:
                                    state="readonly", readonlybackground=C_INPUT)
         self.entry_file.grid(row=1, column=0, columnspan=2, sticky="ew", ipady=7, ipadx=6)
 
-        tk.Button(card_file, text="📁  Buscar archivo",
+        btn_files_frame = tk.Frame(card_file, bg=C_CARD)
+        btn_files_frame.grid(row=1, column=2, padx=(10, 0))
+
+        tk.Button(btn_files_frame, text="📁 Buscar archivo",
                   command=self._buscar_archivo,
                   bg=C_ACCENT, fg=C_TEXT,
                   activebackground=C_ACCENT_H, activeforeground=C_TEXT,
                   relief="flat", font=("Segoe UI", 10, "bold"),
-                  cursor="hand2", padx=14, pady=5,
-                  bd=0).grid(row=1, column=2, padx=(10, 0))
+                  cursor="hand2", padx=12, pady=5,
+                  bd=0).pack(side="left", padx=(0, 5))
+
+        tk.Button(btn_files_frame, text="🧪 Crear datos de prueba",
+                  command=self._generar_prueba_gui,
+                  bg=C_INPUT, fg=C_HEAD,
+                  activebackground=C_BORDER, activeforeground=C_TEXT,
+                  relief="flat", font=("Segoe UI", 9, "bold"),
+                  cursor="hand2", padx=10, pady=5,
+                  bd=0).pack(side="left")
 
         # ── Botón INICIAR ────────────────────────────────────────────────────
         btn_frame = tk.Frame(self.root, bg=C_BG, padx=16)
@@ -329,6 +342,27 @@ class CommerceHubApp:
             self.ruta_htm.set(ruta)
             self._log(f"Archivo: {Path(ruta).name}", "ok")
 
+    def _generar_prueba_gui(self):
+        """Genera un archivo de prueba ficticio y lo selecciona automáticamente."""
+        pos_input = simpledialog.askstring(
+            "Crear datos de prueba",
+            "Opcional: Ingresa los PO Numbers a probar separados por coma\n(o deja en blanco para usar POs de prueba por defecto):",
+            parent=self.root
+        )
+
+        pos_lista = None
+        if pos_input and pos_input.strip():
+            pos_lista = [p.strip() for p in pos_input.split(",") if p.strip()]
+
+        try:
+            ruta_salida = generar_html_prueba(pos_lista)
+            self.ruta_htm.set(str(ruta_salida.resolve()))
+            self._log("🧪 Archivo de prueba generado y seleccionado automáticamente:", "head")
+            self._log(f"   {ruta_salida.name}", "ok")
+            self._set_status(f"●  Prueba lista — {ruta_salida.name} cargado. Presiona Iniciar.")
+        except Exception as e:
+            self._log(f"❌ Error al generar archivo de prueba: {e}", "err")
+
     # ─── Arranque ────────────────────────────────────────────────────────────
 
     def _iniciar(self):
@@ -386,8 +420,8 @@ class CommerceHubApp:
         # ═════════════════════════════════════════════════════════
         self._log("══ PASO 2: Abriendo Brave ══", "head")
 
-        opts = webdriver.ChromeOptions()
-        opts.binary_location = BRAVE_PATH
+        opts = ChromeOptions()
+        opts.binary_location = obtener_ruta_brave()
         opts.add_experimental_option("detach", True)
         opts.add_experimental_option("excludeSwitches", ["enable-automation"])
         opts.add_experimental_option("useAutomationExtension", False)
@@ -532,115 +566,140 @@ class CommerceHubApp:
         # ═════════════════════════════════════════════════════════
         #  PASO 4 — PROCESAR ÓRDENES
         # ═════════════════════════════════════════════════════════
-        self._log("══ PASO 4: Procesando órdenes ══", "head")
+        self._log("══ PASO 4: Procesando órdenes automáticamente ══", "head")
+        self._log("👆 Navega al formulario quickship en Brave y presiona RELLENAR CAMPOS", "warn")
+        self._set_status("● Navega al formulario quickship en Brave y presiona RELLENAR CAMPOS")
+
+        # Habilitar botón RELLENAR CAMPOS en la interfaz para el usuario
+        def _activar_boton():
+            self.btn_rellenar.config(state="normal", text="✅  RELLENAR CAMPOS (TODAS LAS ÓRDENES)")
+            self.lbl_orden_title.config(
+                text=f"📦  {total} Órdenes cargadas — presiona RELLENAR CAMPOS para procesar todas",
+                fg=C_HEAD
+            )
+        self._ui(_activar_boton)
+
+        # Esperar clic del usuario en RELLENAR CAMPOS
+        self.action_event.clear()
+        self.action_event.wait()
+
+        if self.action_result == "saltar":
+            self._log("⏭️ Proceso cancelado por el usuario", "warn")
+            return
+
+        self._log(f"🚀 Procesando {total} órdenes en la página...", "head")
         procesadas = 0
         fallidas   = []
 
         for i, orden in enumerate(ordenes, 1):
-            self._mostrar_orden(orden, i, total)
-            self._set_status(f"●  Orden {i}/{total} — navega al formulario y presiona RELLENAR")
-            self._log(f"─── Orden {i}/{total}  ·  PO: {orden['po']} ───", "head")
-            self._log(f"    Invoice:  {orden['invoice']}", "info")
-            self._log(f"    Tracking: {orden['tracking']}", "info")
-            self._log("    👆 Navega al formulario quickship y presiona RELLENAR CAMPOS", "warn")
+            po_target = orden["po"]
+            invoice_val = orden["invoice"]
+            tracking_val = orden["tracking"]
 
-            # Esperar acción del usuario (botón en la GUI)
-            self.action_event.clear()
-            self.action_event.wait()
+            self._log(f"─── Orden {i}/{total}  ·  PO: {po_target} ───", "head")
 
-            if self.action_result == "saltar":
-                self._log(f"⏭️  Orden {i} saltada", "warn")
-                fallidas.append({"n": i, "po": orden["po"], "razon": "Saltada"})
-                continue
+            # 1. Buscar PO Number en la página actual
+            po_nodes = drv.find_elements(By_.XPATH, f"//*[contains(text(), '{po_target}')]")
+            if not po_nodes:
+                if po_target not in drv.page_source:
+                    self._log(f"❌ PO '{po_target}' NO fue encontrado en la página web.", "err")
+                    fallidas.append({"n": i, "po": po_target, "razon": "PO no existe en la página"})
+                    continue
+
+            po_elem = po_nodes[0]
+            self._log(f"  ✅ PO '{po_target}' localizado en la página.", "ok")
+
+            # 2. Encontrar el contenedor específico de esta orden (subiendo por ancestros)
+            container = None
+            parent = po_elem
+            for _ in range(6):
+                try:
+                    parent = parent.find_element(By_.XPATH, "..")
+                    txt_p = parent.text
+                    if "Invoice" in txt_p or "Tracking" in txt_p:
+                        container = parent
+                        break
+                except Exception:
+                    break
+
+            if not container:
+                container = drv
 
             exito = True
 
-            # ── Invoice ──────────────────────────────────────────────────────
-            sel_inv = [
-                (By_.NAME, "invoiceNumber"), (By_.NAME, "invoice_number"),
-                (By_.NAME, "invoiceNum"),    (By_.ID,   "invoiceNumber"),
-                (By_.ID,   "invoice_number"),
-                (By_.XPATH, "//input[contains(@name,'invoice') and not(contains(@name,'total'))]"),
-                (By_.XPATH, "//label[contains(text(),'Invoice')]/following::input[1]"),
-                (By_.XPATH, "//td[contains(text(),'Invoice')]/following-sibling::td/input"),
+            # 3. Rellenar Tracking Number primero (desde Tracking# del .htm)
+            campo_trk = None
+            selectores_trk = [
+                (By_.XPATH, ".//td[contains(text(),'Tracking')]/following-sibling::td//input[not(@type='hidden')]"),
+                (By_.XPATH, ".//td[contains(text(),'Tracking')]/following::input[not(@type='hidden')][1]"),
+                (By_.XPATH, ".//input[contains(@name,'tracking') or contains(@name,'Tracking')]"),
             ]
-            campo = self._buscar_elemento(drv, sel_inv, TIMEOUT_SEG)
-            if campo:
+            if container != drv:
+                campo_trk = self._buscar_elemento_scoped(drv, container, selectores_trk)
+
+            if not campo_trk:
                 try:
-                    campo.clear()
-                    campo.send_keys(orden["invoice"])
-                    self._log(f"✅ Invoice: {orden['invoice']}", "ok")
-                except ElementNotInteractableException:
-                    self._log("❌ Invoice existe pero no es interactuable", "err")
+                    campo_trk = po_elem.find_element(
+                        By_.XPATH, "./following::td[contains(text(),'Tracking')][1]/following::input[not(@type='hidden')][1]"
+                    )
+                except Exception:
+                    pass
+
+            if not campo_trk:
+                campo_trk = self._buscar_elemento_scoped(drv, drv, selectores_trk)
+
+            if campo_trk:
+                try:
+                    campo_trk.clear()
+                    campo_trk.send_keys(tracking_val)
+                    self._log(f"  ✅ Tracking Number: {tracking_val}", "ok")
+                except Exception as e_trk:
+                    self._log(f"  ❌ Error escribiendo Tracking: {e_trk}", "err")
                     exito = False
             else:
-                self._log("❌ Campo Invoice no encontrado", "err")
+                self._log(f"  ❌ Campo Tracking Number no encontrado para PO {po_target}", "err")
                 exito = False
 
-            # ── Tracking ─────────────────────────────────────────────────────
-            sel_trk = [
-                (By_.NAME, "trackingNumber"), (By_.NAME, "tracking_number"),
-                (By_.NAME, "trackingNum"),    (By_.NAME, "shipTracking"),
-                (By_.ID,   "trackingNumber"), (By_.ID,   "tracking_number"),
-                (By_.XPATH, "//input[contains(@name,'tracking') or contains(@name,'Tracking')]"),
-                (By_.XPATH, "//label[contains(text(),'Tracking')]/following::input[1]"),
+            # 4. Rellenar Invoice Number (desde Invoice# del .htm)
+            campo_inv = None
+            selectores_inv = [
+                (By_.XPATH, ".//td[contains(text(),'Invoice')]/following-sibling::td//input[not(@type='hidden')]"),
+                (By_.XPATH, ".//td[contains(text(),'Invoice')]/following::input[not(@type='hidden')][1]"),
+                (By_.XPATH, ".//input[contains(@name,'invoice') and not(contains(@name,'total')) and not(contains(@name,'Total'))]"),
             ]
-            campo = self._buscar_elemento(drv, sel_trk, TIMEOUT_SEG)
-            if campo:
-                try:
-                    campo.clear()
-                    campo.send_keys(orden["tracking"])
-                    self._log(f"✅ Tracking: {orden['tracking']}", "ok")
-                except ElementNotInteractableException:
-                    self._log("❌ Tracking existe pero no es interactuable", "err")
-                    exito = False
-            else:
-                self._log("❌ Campo Tracking no encontrado", "err")
-                exito = False
+            if container != drv:
+                campo_inv = self._buscar_elemento_scoped(drv, container, selectores_inv)
 
-            # ── Dropdown Shipping Method ──────────────────────────────────────
-            sel_drop = [
-                (By_.NAME, "shipMethod"), (By_.NAME, "shippingMethod"),
-                (By_.NAME, "ship_method"),(By_.ID,   "shipMethod"),
-                (By_.ID,   "shippingMethod"),
-                (By_.XPATH, "//select[contains(@name,'ship') or contains(@name,'Ship') or contains(@name,'method')]"),
-                (By_.XPATH, "//label[contains(text(),'Shipping Method')]/following::select[1]"),
-                (By_.XPATH, "//td[contains(text(),'Shipping Method')]/following-sibling::td/select"),
-            ]
-            campo = self._buscar_elemento(drv, sel_drop, TIMEOUT_SEG)
-            if campo:
+            if not campo_inv:
                 try:
-                    sel = Select(campo)
-                    try:
-                        sel.select_by_visible_text(UPS_GROUND_TEXTO)
-                        self._log(f"✅ Shipping: {UPS_GROUND_TEXTO}", "ok")
-                    except Exception:
-                        # Intento por texto parcial
-                        encontrado = False
-                        for opt in sel.options:
-                            if "ups" in opt.text.lower() and "ground" in opt.text.lower():
-                                sel.select_by_visible_text(opt.text)
-                                self._log(f"✅ Shipping (parcial): {opt.text}", "ok")
-                                encontrado = True
-                                break
-                        if not encontrado:
-                            opciones = [o.text for o in sel.options]
-                            self._log(f"⚠️  '{UPS_GROUND_TEXTO}' no encontrado. Opciones: {opciones}", "warn")
-                except ElementNotInteractableException:
-                    self._log("❌ Dropdown no interactuable", "err")
+                    campo_inv = po_elem.find_element(
+                        By_.XPATH, "./following::td[contains(text(),'Invoice')][1]/following::input[not(@type='hidden')][1]"
+                    )
+                except Exception:
+                    pass
+
+            if not campo_inv:
+                campo_inv = self._buscar_elemento_scoped(drv, drv, selectores_inv)
+
+            if campo_inv:
+                try:
+                    campo_inv.clear()
+                    campo_inv.send_keys(invoice_val)
+                    self._log(f"  ✅ Invoice Number: {invoice_val}", "ok")
+                except Exception as e_inv:
+                    self._log(f"  ❌ Error escribiendo Invoice: {e_inv}", "err")
                     exito = False
             else:
-                self._log("⚠️  Dropdown Shipping no encontrado", "warn")
+                self._log(f"  ❌ Campo Invoice Number no encontrado para PO {po_target}", "err")
+                exito = False
 
             if exito:
                 procesadas += 1
-                self._log("✅ Campos listos — haz clic en GUARDAR/SHIP en el portal", "ok")
-                self._set_status(f"●  Orden {i} rellenada ✅ — guarda en el portal y continúa")
+                self._log(f"  ✅ Orden {i} ({po_target}) rellenada exitosamente.", "ok")
             else:
-                self._log(f"⚠️  Orden {i} tuvo problemas — revisa manualmente", "warn")
-                fallidas.append({"n": i, "po": orden["po"], "razon": "Error en campos"})
+                fallidas.append({"n": i, "po": po_target, "razon": "Campos incompletos"})
 
-            time.sleep(0.3)
+            time.sleep(0.2)
 
         # ═════════════════════════════════════════════════════════
         #  RESUMEN FINAL
@@ -655,7 +714,20 @@ class CommerceHubApp:
         self._set_status(f"●  Completado ✅  {procesadas}/{total} órdenes procesadas")
         self._bloquear_botones_accion("── Proceso completado ✅ ──")
 
-    # ─── Utilitario: buscar elemento con fallbacks ───────────────────────────
+    def _buscar_elemento_scoped(self, drv, search_scope, selectores):
+        for by, val in selectores:
+            try:
+                if search_scope != drv and val.startswith(".//"):
+                    elems = search_scope.find_elements(by, val)
+                    if elems:
+                        return elems[0]
+                else:
+                    elems = drv.find_elements(by, val)
+                    if elems:
+                        return elems[0]
+            except Exception:
+                continue
+        return None
 
     def _buscar_elemento(self, drv, selectores, timeout):
         wait = WebDriverWait(drv, timeout)

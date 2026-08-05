@@ -10,8 +10,11 @@ Retorna una lista de diccionarios con:
   - po       : Numero de orden / PO (Cust. P/O#)
 """
 
+import sys
 from bs4 import BeautifulSoup
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 CLIENTE_OBJETIVO = "08461"
 
@@ -19,49 +22,80 @@ CLIENTE_OBJETIVO = "08461"
 def parse_reporte(ruta_html: str) -> list[dict]:
     """
     Lee el HTML y devuelve una lista de ordenes para el cliente 08461.
+    Usa detección dinámica por encabezados de columna.
     
-    Args:
-        ruta_html: Ruta al archivo .htm de la empresa.
-    
-    Returns:
-        Lista de dicts con claves: 'invoice', 'tracking', 'po'
+    Mapeo esperado:
+      - Invoice#   -> invoice
+      - Cus. ID    -> cliente (08461)
+      - Cust. P/O# -> po (PO Number)
+      - Tracking#  -> tracking
+      - Ship Via   -> ship_via
     """
     with open(ruta_html, "r", encoding="utf-8", errors="ignore") as f:
         contenido = f.read()
 
     soup = BeautifulSoup(contenido, "html.parser")
-    tabla = soup.find("table", {"id": "Table1"})
-
-    if not tabla:
-        # Intentar encontrar cualquier tabla si no tiene el id
-        tabla = soup.find("table")
+    tabla = soup.find("table", {"id": "Table1"}) or soup.find("table")
 
     if not tabla:
         raise ValueError("No se encontro ninguna tabla en el archivo HTML.")
 
     filas = tabla.find_all("tr")
+    if not filas:
+        return []
+
+    # Índices por defecto (fallback)
+    idx_invoice  = 1
+    idx_cus      = 3
+    idx_po       = 4
+    idx_tracking = 6
+    idx_ship_via = 7
+
+    # Mapeo dinámico leyendo la fila 0 de encabezados
+    encabezados_celdas = filas[0].find_all(["td", "th"])
+    if encabezados_celdas:
+        encabezados = [c.get_text(strip=True).upper() for c in encabezados_celdas]
+        for idx, h in enumerate(encabezados):
+            if "P/O" in h or "PO" in h:
+                idx_po = idx
+            elif "TRACKING" in h or "TRACK" in h:
+                idx_tracking = idx
+            elif "INVOICE" in h and "DT" not in h and "DATE" not in h:
+                idx_invoice = idx
+            elif "CUS" in h or "CLIENTE" in h:
+                idx_cus = idx
+            elif "SHIP VIA" in h or "VIA" in h:
+                idx_ship_via = idx
+
     ordenes = []
 
-    # La primera fila es el encabezado, se omite
     for fila in filas[1:]:
         celdas = fila.find_all("td")
-        if len(celdas) < 8:
-            continue  # Fila incompleta, se omite
+        if len(celdas) < 4:
+            continue
 
-        # Extraer y limpiar cada columna
-        # Orden de columnas: Package# | Invoice# | Invoice Dt | Cus.ID | Cust.P/O# | S/O# | Tracking# | Ship Via
-        cus_id   = celdas[3].get_text(strip=True)
-        invoice  = celdas[1].get_text(strip=True)
-        po       = celdas[4].get_text(strip=True)
-        tracking = celdas[6].get_text(strip=True)
+        textos = [c.get_text(strip=True) for c in celdas]
 
-        # Solo procesar ordenes del cliente objetivo
-        if cus_id == CLIENTE_OBJETIVO:
-            ordenes.append({
-                "invoice":  invoice,
-                "tracking": tracking,
-                "po":       po,
-            })
+        # Comprobar si la fila corresponde al cliente 08461
+        es_cliente = False
+        if idx_cus < len(textos) and CLIENTE_OBJETIVO in textos[idx_cus]:
+            es_cliente = True
+        elif CLIENTE_OBJETIVO in textos:
+            es_cliente = True
+
+        if es_cliente:
+            invoice  = textos[idx_invoice] if idx_invoice < len(textos) else ""
+            po       = textos[idx_po] if idx_po < len(textos) else ""
+            tracking = textos[idx_tracking] if idx_tracking < len(textos) else ""
+            ship_via = textos[idx_ship_via] if idx_ship_via < len(textos) else "UPS Ground"
+
+            if po and (invoice or tracking):
+                ordenes.append({
+                    "invoice":  invoice,
+                    "tracking": tracking,
+                    "po":       po,
+                    "ship_via": ship_via or "UPS Ground",
+                })
 
     return ordenes
 
@@ -69,14 +103,15 @@ def parse_reporte(ruta_html: str) -> list[dict]:
 def mostrar_resumen(ordenes: list[dict]) -> None:
     """Muestra en consola un resumen de las ordenes encontradas."""
     total = len(ordenes)
-    print(f"\n{'='*60}")
+    print(f"\n{'='*75}")
     print(f"  ORDENES ENCONTRADAS PARA CLIENTE {CLIENTE_OBJETIVO}: {total}")
-    print(f"{'='*60}")
-    print(f"  {'#':<5} {'PO / Cust. P/O#':<25} {'Invoice#':<12} {'Tracking#'}")
-    print(f"  {'-'*5} {'-'*25} {'-'*12} {'-'*25}")
+    print(f"{'='*75}")
+    print(f"  {'#':<5} {'PO / Cust. P/O#':<20} {'Invoice#':<12} {'Tracking#':<25} {'Ship Via'}")
+    print(f"  {'-'*5} {'-'*20} {'-'*12} {'-'*25} {'-'*12}")
     for i, orden in enumerate(ordenes, 1):
-        print(f"  {i:<5} {orden['po']:<25} {orden['invoice']:<12} {orden['tracking']}")
-    print(f"{'='*60}\n")
+        ship_via = orden.get('ship_via', 'UPS Ground')
+        print(f"  {i:<5} {orden['po']:<20} {orden['invoice']:<12} {orden['tracking']:<25} {ship_via}")
+    print(f"{'='*75}\n")
 
 
 if __name__ == "__main__":

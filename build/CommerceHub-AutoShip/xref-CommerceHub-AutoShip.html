@@ -22,23 +22,10 @@ imports:
  &#8226;   <a href="#_weakrefset">_weakrefset</a>
  &#8226;   <a href="#abc">abc</a>
  &#8226;   <a href="#bs4">bs4</a>
- &#8226;   <a href="#bs4._deprecation">bs4._deprecation</a>
- &#8226;   <a href="#bs4._typing">bs4._typing</a>
- &#8226;   <a href="#bs4._warnings">bs4._warnings</a>
- &#8226;   <a href="#bs4.builder">bs4.builder</a>
- &#8226;   <a href="#bs4.builder._html5lib">bs4.builder._html5lib</a>
- &#8226;   <a href="#bs4.builder._htmlparser">bs4.builder._htmlparser</a>
- &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
- &#8226;   <a href="#bs4.css">bs4.css</a>
- &#8226;   <a href="#bs4.dammit">bs4.dammit</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
- &#8226;   <a href="#bs4.element">bs4.element</a>
- &#8226;   <a href="#bs4.exceptions">bs4.exceptions</a>
- &#8226;   <a href="#bs4.filter">bs4.filter</a>
- &#8226;   <a href="#bs4.formatter">bs4.formatter</a>
  &#8226;   <a href="#codecs">codecs</a>
  &#8226;   <a href="#collections">collections</a>
  &#8226;   <a href="#copyreg">copyreg</a>
+ &#8226;   <a href="#crear_reporte_prueba">crear_reporte_prueba</a>
  &#8226;   <a href="#datetime">datetime</a>
  &#8226;   <a href="#encodings">encodings</a>
  &#8226;   <a href="#encodings.aliases">encodings.aliases</a>
@@ -173,6 +160,7 @@ imports:
  &#8226;   <a href="#ntpath">ntpath</a>
  &#8226;   <a href="#operator">operator</a>
  &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#parse_html">parse_html</a>
  &#8226;   <a href="#pathlib">pathlib</a>
  &#8226;   <a href="#posixpath">posixpath</a>
  &#8226;   <a href="#pyi_rth__tkinter.py">pyi_rth__tkinter.py</a>
@@ -321,6 +309,7 @@ imports:
  &#8226;   <a href="#time">time</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
+ &#8226;   <a href="#tkinter.simpledialog">tkinter.simpledialog</a>
  &#8226;   <a href="#traceback">traceback</a>
  &#8226;   <a href="#types">types</a>
  &#8226;   <a href="#warnings">warnings</a>
@@ -1591,16 +1580,6 @@ imported by:
   <tt>_locale</tt> <span class="moduletype"><i>(builtin module)</i></span>  <div class="import">
 imported by:
     <a href="#locale">locale</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="_lsprof"></a>
-  <tt>_lsprof</tt> <span class="moduletype"><i>(builtin module)</i></span>  <div class="import">
-imported by:
-    <a href="#cProfile">cProfile</a>
 
   </div>
 
@@ -4651,11 +4630,11 @@ imported by:
  &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
  &#8226;   <a href="#bs4.css">bs4.css</a>
  &#8226;   <a href="#bs4.dammit">bs4.dammit</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
  &#8226;   <a href="#bs4.exceptions">bs4.exceptions</a>
  &#8226;   <a href="#bs4.filter">bs4.filter</a>
  &#8226;   <a href="#bs4.formatter">bs4.formatter</a>
+ &#8226;   <a href="#parse_html">parse_html</a>
  &#8226;   <a href="#soupsieve">soupsieve</a>
  &#8226;   <a href="#soupsieve.css_match">soupsieve.css_match</a>
 
@@ -4676,8 +4655,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
  &#8226;   <a href="#bs4.filter">bs4.filter</a>
 
@@ -4698,15 +4676,13 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder">bs4.builder</a>
  &#8226;   <a href="#bs4.builder._html5lib">bs4.builder._html5lib</a>
  &#8226;   <a href="#bs4.builder._htmlparser">bs4.builder._htmlparser</a>
  &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
  &#8226;   <a href="#bs4.css">bs4.css</a>
  &#8226;   <a href="#bs4.dammit">bs4.dammit</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
  &#8226;   <a href="#bs4.filter">bs4.filter</a>
  &#8226;   <a href="#bs4.formatter">bs4.formatter</a>
@@ -4725,8 +4701,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder">bs4.builder</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
 
@@ -4759,13 +4734,11 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder">bs4.builder</a>
  &#8226;   <a href="#bs4.builder._html5lib">bs4.builder._html5lib</a>
  &#8226;   <a href="#bs4.builder._htmlparser">bs4.builder._htmlparser</a>
  &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
 
   </div>
@@ -4791,8 +4764,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4.builder">bs4.builder</a>
+    <a href="#bs4.builder">bs4.builder</a>
 
   </div>
 
@@ -4817,8 +4789,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder">bs4.builder</a>
 
   </div>
@@ -4845,8 +4816,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4.builder">bs4.builder</a>
+    <a href="#bs4.builder">bs4.builder</a>
 
   </div>
 
@@ -4869,8 +4839,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
 
   </div>
@@ -4900,41 +4869,10 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder._htmlparser">bs4.builder._htmlparser</a>
  &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
  &#8226;   <a href="#bs4.formatter">bs4.formatter</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="bs4.diagnose"></a>
-  <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/site-packages/bs4/diagnose.py" type="text/plain"><tt>bs4.diagnose</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#bs4">bs4</a>
- &#8226;   <a href="#bs4._typing">bs4._typing</a>
- &#8226;   <a href="#bs4.builder">bs4.builder</a>
- &#8226;   <a href="#cProfile">cProfile</a>
- &#8226;   <a href="#html.parser">html.parser</a>
- &#8226;   <a href="#html5lib">html5lib</a>
- &#8226;   <a href="#io">io</a>
- &#8226;   <a href="#lxml">lxml</a>
- &#8226;   <a href="#pstats">pstats</a>
- &#8226;   <a href="#random">random</a>
- &#8226;   <a href="#sys">sys</a>
- &#8226;   <a href="#tempfile">tempfile</a>
- &#8226;   <a href="#time">time</a>
- &#8226;   <a href="#traceback">traceback</a>
- &#8226;   <a href="#typing">typing</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
 
   </div>
 
@@ -4963,8 +4901,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4._typing">bs4._typing</a>
  &#8226;   <a href="#bs4.builder">bs4.builder</a>
  &#8226;   <a href="#bs4.builder._html5lib">bs4.builder._html5lib</a>
@@ -4989,8 +4926,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder">bs4.builder</a>
  &#8226;   <a href="#bs4.builder._htmlparser">bs4.builder._htmlparser</a>
  &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
@@ -5017,8 +4953,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
 
   </div>
@@ -5041,8 +4976,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4">bs4</a>
+    <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
 
   </div>
@@ -5101,31 +5035,6 @@ imported by:
  &#8226;   <a href="#shutil">shutil</a>
  &#8226;   <a href="#tarfile">tarfile</a>
  &#8226;   <a href="#zipfile">zipfile</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="cProfile"></a>
-  <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/cProfile.py" type="text/plain"><tt>cProfile</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#_lsprof">_lsprof</a>
- &#8226;   <a href="#importlib.machinery">importlib.machinery</a>
- &#8226;   <a href="#io">io</a>
- &#8226;   <a href="#marshal">marshal</a>
- &#8226;   <a href="#optparse">optparse</a>
- &#8226;   <a href="#os">os</a>
- &#8226;   <a href="#profile">profile</a>
- &#8226;   <a href="#pstats">pstats</a>
- &#8226;   <a href="#runpy">runpy</a>
- &#8226;   <a href="#sys">sys</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#bs4.diagnose">bs4.diagnose</a>
 
   </div>
 
@@ -5877,25 +5786,6 @@ imports:
   <div class="import">
 imported by:
     <a href="#charset_normalizer">charset_normalizer</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="cmd"></a>
-  <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/cmd.py" type="text/plain"><tt>cmd</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#inspect">inspect</a>
- &#8226;   <a href="#readline">readline</a>
- &#8226;   <a href="#string">string</a>
- &#8226;   <a href="#sys">sys</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#pstats">pstats</a>
 
   </div>
 
@@ -6660,6 +6550,23 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="crear_reporte_prueba"></a>
+  <a target="code" href="///C:/Users/Raymond/.gemini/antigravity-ide/scratch/commercehub-automation/crear_reporte_prueba.py" type="text/plain"><tt>crear_reporte_prueba</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#pathlib">pathlib</a>
+ &#8226;   <a href="#sys">sys</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#autoship_gui.py">autoship_gui.py</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="cryptography"></a>
   <a target="code" href="" type="text/plain"><tt>cryptography</tt></a>
 <span class="moduletype">MissingModule</span>  <div class="import">
@@ -6963,7 +6870,6 @@ imported by:
  &#8226;   <a href="#h11._events">h11._events</a>
  &#8226;   <a href="#packaging._tokenizer">packaging._tokenizer</a>
  &#8226;   <a href="#pprint">pprint</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#pycparser.c_lexer">pycparser.c_lexer</a>
  &#8226;   <a href="#pycparser.c_parser">pycparser.c_parser</a>
  &#8226;   <a href="#selenium.webdriver.common.bidi._event_manager">selenium.webdriver.common.bidi._event_manager</a>
@@ -10286,7 +10192,6 @@ imported by:
  &#8226;   <a href="#packaging._elffile">packaging._elffile</a>
  &#8226;   <a href="#packaging._ranges">packaging._ranges</a>
  &#8226;   <a href="#packaging.ranges">packaging.ranges</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#py_compile">py_compile</a>
  &#8226;   <a href="#pycparser.c_lexer">pycparser.c_lexer</a>
  &#8226;   <a href="#re">re</a>
@@ -10529,7 +10434,6 @@ imported by:
  &#8226;   <a href="#pickle">pickle</a>
  &#8226;   <a href="#pkgutil">pkgutil</a>
  &#8226;   <a href="#platform">platform</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#re">re</a>
  &#8226;   <a href="#selenium.webdriver.common.virtual_authenticator">selenium.webdriver.common.virtual_authenticator</a>
  &#8226;   <a href="#selenium.webdriver.remote.webdriver">selenium.webdriver.remote.webdriver</a>
@@ -10701,7 +10605,6 @@ imports:
 imported by:
     <a href="#argparse">argparse</a>
  &#8226;   <a href="#getopt">getopt</a>
- &#8226;   <a href="#optparse">optparse</a>
 
   </div>
 
@@ -11176,7 +11079,6 @@ imports:
   <div class="import">
 imported by:
     <a href="#bs4.builder._htmlparser">bs4.builder._htmlparser</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
 
   </div>
 
@@ -11188,7 +11090,6 @@ imported by:
 <span class="moduletype">MissingModule</span>  <div class="import">
 imported by:
     <a href="#bs4.builder._html5lib">bs4.builder._html5lib</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
 
   </div>
 
@@ -11658,15 +11559,13 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#cProfile">cProfile</a>
- &#8226;   <a href="#cffi._imp_emulation">cffi._imp_emulation</a>
+    <a href="#cffi._imp_emulation">cffi._imp_emulation</a>
  &#8226;   <a href="#cffi.verifier">cffi.verifier</a>
  &#8226;   <a href="#ctypes.util">ctypes.util</a>
  &#8226;   <a href="#importlib.abc">importlib.abc</a>
  &#8226;   <a href="#inspect">inspect</a>
  &#8226;   <a href="#packaging.tags">packaging.tags</a>
  &#8226;   <a href="#pkgutil">pkgutil</a>
- &#8226;   <a href="#profile">profile</a>
  &#8226;   <a href="#py_compile">py_compile</a>
  &#8226;   <a href="#pydoc">pydoc</a>
  &#8226;   <a href="#runpy">runpy</a>
@@ -12113,7 +12012,6 @@ imported by:
  &#8226;   <a href="#attr._compat">attr._compat</a>
  &#8226;   <a href="#attr._make">attr._make</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
- &#8226;   <a href="#cmd">cmd</a>
  &#8226;   <a href="#dataclasses">dataclasses</a>
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#importlib.resources._common">importlib.resources._common</a>
@@ -12166,9 +12064,7 @@ imported by:
  &#8226;   <a href="#base64">base64</a>
  &#8226;   <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#bz2">bz2</a>
- &#8226;   <a href="#cProfile">cProfile</a>
  &#8226;   <a href="#cffi.ffiplatform">cffi.ffiplatform</a>
  &#8226;   <a href="#cffi.recompiler">cffi.recompiler</a>
  &#8226;   <a href="#cffi.verifier">cffi.verifier</a>
@@ -12200,7 +12096,6 @@ imported by:
  &#8226;   <a href="#pathlib._local">pathlib._local</a>
  &#8226;   <a href="#pickle">pickle</a>
  &#8226;   <a href="#pprint">pprint</a>
- &#8226;   <a href="#profile">profile</a>
  &#8226;   <a href="#pycparser">pycparser</a>
  &#8226;   <a href="#pydoc">pydoc</a>
  &#8226;   <a href="#quopri">quopri</a>
@@ -12658,7 +12553,6 @@ imported by:
 <span class="moduletype">MissingModule</span>  <div class="import">
 imported by:
     <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
 
   </div>
 
@@ -12691,11 +12585,8 @@ imported by:
   <a name="marshal"></a>
   <tt>marshal</tt> <span class="moduletype"><i>(builtin module)</i></span>  <div class="import">
 imported by:
-    <a href="#cProfile">cProfile</a>
- &#8226;   <a href="#importlib._bootstrap_external">importlib._bootstrap_external</a>
+    <a href="#importlib._bootstrap_external">importlib._bootstrap_external</a>
  &#8226;   <a href="#pkgutil">pkgutil</a>
- &#8226;   <a href="#profile">profile</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#setuptools.command.bdist_egg">setuptools.command.bdist_egg</a>
  &#8226;   <a href="#setuptools.depends">setuptools.depends</a>
  &#8226;   <a href="#zipimport">zipimport</a>
@@ -13778,26 +13669,6 @@ imported by:
 </div>
 
 <div class="node">
-  <a name="optparse"></a>
-  <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/optparse.py" type="text/plain"><tt>optparse</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#gettext">gettext</a>
- &#8226;   <a href="#os">os</a>
- &#8226;   <a href="#sys">sys</a>
- &#8226;   <a href="#textwrap">textwrap</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#cProfile">cProfile</a>
- &#8226;   <a href="#profile">profile</a>
-
-  </div>
-
-</div>
-
-<div class="node">
   <a name="os"></a>
   <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/os.py" type="text/plain"><tt>os</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -13843,7 +13714,6 @@ imported by:
  &#8226;   <a href="#asyncio.windows_utils">asyncio.windows_utils</a>
  &#8226;   <a href="#autoship_gui.py">autoship_gui.py</a>
  &#8226;   <a href="#bz2">bz2</a>
- &#8226;   <a href="#cProfile">cProfile</a>
  &#8226;   <a href="#cffi._imp_emulation">cffi._imp_emulation</a>
  &#8226;   <a href="#cffi.api">cffi.api</a>
  &#8226;   <a href="#cffi.ffiplatform">cffi.ffiplatform</a>
@@ -13902,7 +13772,6 @@ imported by:
  &#8226;   <a href="#multiprocessing.util">multiprocessing.util</a>
  &#8226;   <a href="#netrc">netrc</a>
  &#8226;   <a href="#ntpath">ntpath</a>
- &#8226;   <a href="#optparse">optparse</a>
  &#8226;   <a href="#os.path">os.path</a>
  &#8226;   <a href="#packaging._elffile">packaging._elffile</a>
  &#8226;   <a href="#packaging._manylinux">packaging._manylinux</a>
@@ -13911,8 +13780,6 @@ imported by:
  &#8226;   <a href="#pkgutil">pkgutil</a>
  &#8226;   <a href="#platform">platform</a>
  &#8226;   <a href="#posixpath">posixpath</a>
- &#8226;   <a href="#profile">profile</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#py_compile">py_compile</a>
  &#8226;   <a href="#pydoc">pydoc</a>
  &#8226;   <a href="#pyi_rth__tkinter.py">pyi_rth__tkinter.py</a>
@@ -14604,6 +14471,23 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="parse_html"></a>
+  <a target="code" href="///C:/Users/Raymond/.gemini/antigravity-ide/scratch/commercehub-automation/parse_html.py" type="text/plain"><tt>parse_html</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#bs4">bs4</a>
+ &#8226;   <a href="#sys">sys</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#autoship_gui.py">autoship_gui.py</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="pathlib"></a>
   <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/pathlib/__init__.py" type="text/plain"><tt>pathlib</tt></a>
 <span class="moduletype">Package</span>  <div class="import">
@@ -14615,6 +14499,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#autoship_gui.py">autoship_gui.py</a>
+ &#8226;   <a href="#crear_reporte_prueba">crear_reporte_prueba</a>
  &#8226;   <a href="#dotenv.main">dotenv.main</a>
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#importlib.resources._common">importlib.resources._common</a>
@@ -14876,58 +14761,6 @@ imported by:
  &#8226;   <a href="#setuptools._distutils.dist">setuptools._distutils.dist</a>
  &#8226;   <a href="#unittest.case">unittest.case</a>
  &#8226;   <a href="#unittest.mock">unittest.mock</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="profile"></a>
-  <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/profile.py" type="text/plain"><tt>profile</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#importlib.machinery">importlib.machinery</a>
- &#8226;   <a href="#io">io</a>
- &#8226;   <a href="#marshal">marshal</a>
- &#8226;   <a href="#optparse">optparse</a>
- &#8226;   <a href="#os">os</a>
- &#8226;   <a href="#pstats">pstats</a>
- &#8226;   <a href="#runpy">runpy</a>
- &#8226;   <a href="#sys">sys</a>
- &#8226;   <a href="#time">time</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#cProfile">cProfile</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="pstats"></a>
-  <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/pstats.py" type="text/plain"><tt>pstats</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#cmd">cmd</a>
- &#8226;   <a href="#dataclasses">dataclasses</a>
- &#8226;   <a href="#enum">enum</a>
- &#8226;   <a href="#functools">functools</a>
- &#8226;   <a href="#marshal">marshal</a>
- &#8226;   <a href="#os">os</a>
- &#8226;   <a href="#re">re</a>
- &#8226;   <a href="#readline">readline</a>
- &#8226;   <a href="#sys">sys</a>
- &#8226;   <a href="#time">time</a>
- &#8226;   <a href="#typing">typing</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#bs4.diagnose">bs4.diagnose</a>
- &#8226;   <a href="#cProfile">cProfile</a>
- &#8226;   <a href="#profile">profile</a>
 
   </div>
 
@@ -15310,8 +15143,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#bs4.diagnose">bs4.diagnose</a>
- &#8226;   <a href="#email.generator">email.generator</a>
+    <a href="#email.generator">email.generator</a>
  &#8226;   <a href="#email.utils">email.utils</a>
  &#8226;   <a href="#secrets">secrets</a>
  &#8226;   <a href="#setuptools._vendor.more_itertools.more">setuptools._vendor.more_itertools.more</a>
@@ -15429,7 +15261,6 @@ imported by:
  &#8226;   <a href="#platform">platform</a>
  &#8226;   <a href="#posixpath">posixpath</a>
  &#8226;   <a href="#pprint">pprint</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#pycparser.c_lexer">pycparser.c_lexer</a>
  &#8226;   <a href="#pydoc">pydoc</a>
  &#8226;   <a href="#re">re</a>
@@ -15606,9 +15437,7 @@ imported by:
   <a target="code" href="" type="text/plain"><tt>readline</tt></a>
 <span class="moduletype">MissingModule</span>  <div class="import">
 imported by:
-    <a href="#cmd">cmd</a>
- &#8226;   <a href="#code">code</a>
- &#8226;   <a href="#pstats">pstats</a>
+    <a href="#code">code</a>
  &#8226;   <a href="#rlcompleter">rlcompleter</a>
  &#8226;   <a href="#site">site</a>
 
@@ -16249,9 +16078,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#cProfile">cProfile</a>
- &#8226;   <a href="#multiprocessing.spawn">multiprocessing.spawn</a>
- &#8226;   <a href="#profile">profile</a>
+    <a href="#multiprocessing.spawn">multiprocessing.spawn</a>
 
   </div>
 
@@ -16330,11 +16157,6 @@ imported by:
   <a name="selenium"></a>
   <a target="code" href="///C:/Users/Raymond/AppData/Local/Programs/Python/Python313/Lib/site-packages/selenium/__init__.py" type="text/plain"><tt>selenium</tt></a>
 <span class="moduletype">Package</span>  <div class="import">
-imports:
-    <a href="#selenium.webdriver">selenium.webdriver</a>
-
-  </div>
-  <div class="import">
 imported by:
     <a href="#autoship_gui.py">autoship_gui.py</a>
  &#8226;   <a href="#selenium.common">selenium.common</a>
@@ -16417,7 +16239,6 @@ imports:
   <div class="import">
 imported by:
     <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#selenium">selenium</a>
  &#8226;   <a href="#selenium.webdriver.chrome">selenium.webdriver.chrome</a>
  &#8226;   <a href="#selenium.webdriver.chromium">selenium.webdriver.chromium</a>
  &#8226;   <a href="#selenium.webdriver.common">selenium.webdriver.common</a>
@@ -18940,7 +18761,6 @@ imported by:
 <span class="moduletype">Package</span>  <div class="import">
 imports:
     <a href="#selenium.webdriver">selenium.webdriver</a>
- &#8226;   <a href="#selenium.webdriver.support.expected_conditions">selenium.webdriver.support.expected_conditions</a>
 
   </div>
   <div class="import">
@@ -19057,7 +18877,6 @@ imports:
   <div class="import">
 imported by:
     <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#selenium.webdriver.support">selenium.webdriver.support</a>
 
   </div>
 
@@ -23470,8 +23289,7 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#cmd">cmd</a>
- &#8226;   <a href="#email._encoded_words">email._encoded_words</a>
+    <a href="#email._encoded_words">email._encoded_words</a>
  &#8226;   <a href="#email._header_value_parser">email._header_value_parser</a>
  &#8226;   <a href="#email.quoprimime">email.quoprimime</a>
  &#8226;   <a href="#http.cookies">http.cookies</a>
@@ -23654,8 +23472,6 @@ imported by:
  &#8226;   <a href="#base64">base64</a>
  &#8226;   <a href="#bs4">bs4</a>
  &#8226;   <a href="#bs4.builder">bs4.builder</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
- &#8226;   <a href="#cProfile">cProfile</a>
  &#8226;   <a href="#calendar">calendar</a>
  &#8226;   <a href="#certifi.core">certifi.core</a>
  &#8226;   <a href="#cffi._imp_emulation">cffi._imp_emulation</a>
@@ -23671,13 +23487,13 @@ imported by:
  &#8226;   <a href="#cffi.vengine_gen">cffi.vengine_gen</a>
  &#8226;   <a href="#cffi.verifier">cffi.verifier</a>
  &#8226;   <a href="#charset_normalizer.md">charset_normalizer.md</a>
- &#8226;   <a href="#cmd">cmd</a>
  &#8226;   <a href="#code">code</a>
  &#8226;   <a href="#codecs">codecs</a>
  &#8226;   <a href="#collections">collections</a>
  &#8226;   <a href="#concurrent.futures.process">concurrent.futures.process</a>
  &#8226;   <a href="#configparser">configparser</a>
  &#8226;   <a href="#contextlib">contextlib</a>
+ &#8226;   <a href="#crear_reporte_prueba">crear_reporte_prueba</a>
  &#8226;   <a href="#ctypes">ctypes</a>
  &#8226;   <a href="#ctypes._aix">ctypes._aix</a>
  &#8226;   <a href="#ctypes._endian">ctypes._endian</a>
@@ -23733,7 +23549,6 @@ imported by:
  &#8226;   <a href="#multiprocessing.synchronize">multiprocessing.synchronize</a>
  &#8226;   <a href="#multiprocessing.util">multiprocessing.util</a>
  &#8226;   <a href="#ntpath">ntpath</a>
- &#8226;   <a href="#optparse">optparse</a>
  &#8226;   <a href="#os">os</a>
  &#8226;   <a href="#packaging._manylinux">packaging._manylinux</a>
  &#8226;   <a href="#packaging._musllinux">packaging._musllinux</a>
@@ -23741,14 +23556,13 @@ imported by:
  &#8226;   <a href="#packaging.specifiers">packaging.specifiers</a>
  &#8226;   <a href="#packaging.tags">packaging.tags</a>
  &#8226;   <a href="#packaging.version">packaging.version</a>
+ &#8226;   <a href="#parse_html">parse_html</a>
  &#8226;   <a href="#pathlib._local">pathlib._local</a>
  &#8226;   <a href="#pickle">pickle</a>
  &#8226;   <a href="#pkgutil">pkgutil</a>
  &#8226;   <a href="#platform">platform</a>
  &#8226;   <a href="#posixpath">posixpath</a>
  &#8226;   <a href="#pprint">pprint</a>
- &#8226;   <a href="#profile">profile</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#py_compile">py_compile</a>
  &#8226;   <a href="#pycparser.c_ast">pycparser.c_ast</a>
  &#8226;   <a href="#pydoc">pydoc</a>
@@ -24001,7 +23815,6 @@ imports:
   <div class="import">
 imported by:
     <a href="#_pyrepl.pager">_pyrepl.pager</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#ctypes.util">ctypes.util</a>
  &#8226;   <a href="#dotenv.main">dotenv.main</a>
  &#8226;   <a href="#importlib.resources._common">importlib.resources._common</a>
@@ -24054,7 +23867,6 @@ imported by:
     <a href="#argparse">argparse</a>
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#importlib.metadata._adapters">importlib.metadata._adapters</a>
- &#8226;   <a href="#optparse">optparse</a>
  &#8226;   <a href="#pydoc">pydoc</a>
  &#8226;   <a href="#setuptools._core_metadata">setuptools._core_metadata</a>
  &#8226;   <a href="#setuptools._vendor.jaraco.text">setuptools._vendor.jaraco.text</a>
@@ -24181,7 +23993,6 @@ imported by:
  &#8226;   <a href="#asyncio.base_events">asyncio.base_events</a>
  &#8226;   <a href="#asyncio.windows_events">asyncio.windows_events</a>
  &#8226;   <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#concurrent.futures._base">concurrent.futures._base</a>
  &#8226;   <a href="#datetime">datetime</a>
  &#8226;   <a href="#email._parseaddr">email._parseaddr</a>
@@ -24199,8 +24010,6 @@ imported by:
  &#8226;   <a href="#multiprocessing.queues">multiprocessing.queues</a>
  &#8226;   <a href="#multiprocessing.resource_tracker">multiprocessing.resource_tracker</a>
  &#8226;   <a href="#multiprocessing.synchronize">multiprocessing.synchronize</a>
- &#8226;   <a href="#profile">profile</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#pydoc">pydoc</a>
  &#8226;   <a href="#queue">queue</a>
  &#8226;   <a href="#random">random</a>
@@ -24377,7 +24186,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#tkinter.filedialog">tkinter.filedialog</a>
+    <a href="#autoship_gui.py">autoship_gui.py</a>
+ &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
 
   </div>
 
@@ -24554,7 +24364,6 @@ imported by:
  &#8226;   <a href="#asyncio.base_tasks">asyncio.base_tasks</a>
  &#8226;   <a href="#asyncio.format_helpers">asyncio.format_helpers</a>
  &#8226;   <a href="#autoship_gui.py">autoship_gui.py</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#code">code</a>
  &#8226;   <a href="#concurrent.futures.process">concurrent.futures.process</a>
  &#8226;   <a href="#http.cookiejar">http.cookiejar</a>
@@ -26892,7 +26701,6 @@ imported by:
  &#8226;   <a href="#bs4.builder._lxml">bs4.builder._lxml</a>
  &#8226;   <a href="#bs4.css">bs4.css</a>
  &#8226;   <a href="#bs4.dammit">bs4.dammit</a>
- &#8226;   <a href="#bs4.diagnose">bs4.diagnose</a>
  &#8226;   <a href="#bs4.element">bs4.element</a>
  &#8226;   <a href="#bs4.exceptions">bs4.exceptions</a>
  &#8226;   <a href="#bs4.filter">bs4.filter</a>
@@ -26940,7 +26748,6 @@ imported by:
  &#8226;   <a href="#packaging.tags">packaging.tags</a>
  &#8226;   <a href="#packaging.utils">packaging.utils</a>
  &#8226;   <a href="#packaging.version">packaging.version</a>
- &#8226;   <a href="#pstats">pstats</a>
  &#8226;   <a href="#pycparser.ast_transforms">pycparser.ast_transforms</a>
  &#8226;   <a href="#pycparser.c_ast">pycparser.c_ast</a>
  &#8226;   <a href="#pycparser.c_lexer">pycparser.c_lexer</a>
