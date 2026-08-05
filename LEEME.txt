@@ -1,0 +1,73 @@
+# ======================================================
+#  INSTRUCCIONES DE USO — CommerceHub AutoShip
+# ======================================================
+
+## PASOS PARA EMPEZAR (solo la primera vez)
+
+1. Instalar las librerias necesarias.
+   Abre PowerShell y ejecuta:
+
+   python -m pip install selenium webdriver-manager beautifulsoup4
+
+2. Guardar tu archivo HTML en la carpeta "reportes\":
+   
+   Ejemplo: reportes\reporte_2026-08-05.htm
+
+---
+
+## COMO USAR EL SCRIPT CADA DIA
+
+1. Abre PowerShell en esta carpeta y ejecuta:
+
+   python autoship.py reportes\reporte.htm
+
+   (reemplaza "reporte.htm" con el nombre real de tu archivo)
+
+2. El script mostrara cuantas ordenes encontro para el cliente 08461.
+
+3. Chrome se abrira automaticamente.
+
+4. TU HACES: Inicias sesion en CommerceHub DSM.
+
+5. TU HACES: Navegas hasta el formulario quickship de la primera orden.
+
+6. Regresas a PowerShell y presionas ENTER.
+
+7. El script rellena automaticamente:
+   - Invoice Number
+   - Tracking Number
+   - Selecciona UPS Ground en el dropdown
+
+8. TU HACES: Verificas los campos y haces clic en GUARDAR/SHIP en el portal.
+
+9. TU HACES: Navegas al formulario de la siguiente orden.
+
+10. Repites los pasos 6-9 hasta completar todas las ordenes.
+
+---
+
+## OPCIONES DURANTE EL PROCESO
+
+- ENTER        → Rellena los campos de la orden actual
+- s + ENTER    → Salta esta orden (la omite sin procesarla)
+
+---
+
+## SI ALGO NO FUNCIONA
+
+El script guarda un archivo de log en la carpeta "logs\" con todos los detalles.
+Si un campo no se encuentra, el log mostrara exactamente cual fallo.
+
+En ese caso, envia el log y contacta al desarrollador para ajustar los selectores.
+
+---
+
+## ESTRUCTURA DE ARCHIVOS
+
+commercehub-automation\
+├── autoship.py       ← Script principal (ejecutar este)
+├── parse_html.py     ← Modulo que lee el HTML (no ejecutar directamente)
+├── requirements.txt  ← Librerias necesarias
+├── LEEME.txt         ← Este archivo
+├── reportes\         ← Aqui va el HTML de la empresa
+└── logs\             ← Registros de cada sesion
