@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "playwright-skill": {
+      "source": "lambdatest/agent-skills",
+      "sourceType": "github",
+      "skillPath": "playwright-skill/SKILL.md",
+      "computedHash": "43eb4470d055aae6e909b71b00452bce9b5da65cd3650eaf5337f1a8105f5b73"
+    }
+  }
+}

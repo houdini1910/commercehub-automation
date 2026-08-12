@@ -1,130 +1,74 @@
 """
-diagnostico_login.py - v3
-Detecta campos en Shadow DOM (usado por Frontegg/CommerceHub SSO).
-Ejecutar: py diagnostico_login.py
+diagnostico_login.py - v4 (Playwright)
+Detecta campos de login SSO en CommerceHub utilizando Playwright (con soporte nativo para Shadow DOM).
+Ejecutar: python diagnostico_login.py
 """
 
 import sys
 import time
+import json
 
 # Forzar UTF-8 en la consola de Windows
 sys.stdout.reconfigure(encoding="utf-8")
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.sync_api import sync_playwright
 
 BRAVE_PATH = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 URL_SSO    = "https://sso.auth.commercehub.com/oauth/account/login?appId=7cdb563a-d175-4af2-94f1-a6aa81cffeeb"
 
-# JavaScript que busca inputs/buttons incluyendo Shadow DOM (varios niveles)
-JS_FIND_INPUTS = """
-function findAll(root, tag) {
-    let results = [];
-    try {
-        root.querySelectorAll(tag).forEach(el => {
-            results.push({
-                tag:         el.tagName,
-                type:        el.type        || '',
-                id:          el.id          || '',
-                name:        el.name        || '',
-                placeholder: el.placeholder || '',
-                className:   el.className   || '',
-                text:        el.textContent ? el.textContent.trim().substring(0, 60) : ''
-            });
-        });
-        root.querySelectorAll('*').forEach(el => {
-            if (el.shadowRoot) {
-                results = results.concat(findAll(el.shadowRoot, tag));
-            }
-        });
-    } catch(e) {}
-    return results;
-}
-return JSON.stringify({
-    inputs:  findAll(document, 'input'),
-    buttons: findAll(document, 'button'),
-    iframes: Array.from(document.querySelectorAll('iframe')).map(f => ({src: f.src, name: f.name}))
-});
-"""
-
 
 def main():
-    opts = webdriver.ChromeOptions()
-    opts.binary_location = BRAVE_PATH
-    opts.add_argument("--start-maximized")
+    print("Iniciando Playwright...")
+    with sync_playwright() as p:
+        import os
+        if os.path.exists(BRAVE_PATH):
+            browser = p.chromium.launch(executable_path=BRAVE_PATH, headless=False)
+        else:
+            browser = p.chromium.launch(headless=False)
 
-    print("Abriendo Brave...")
-    service = Service(ChromeDriverManager().install())
-    drv = webdriver.Chrome(service=service, options=opts)
+        page = browser.new_page()
 
-    print(f"Navegando a: {URL_SSO}")
-    drv.get(URL_SSO)
+        print(f"Navegando a: {URL_SSO}")
+        page.goto(URL_SSO)
 
-    # Esperar hasta 30 seg a que haya algun contenido renderizado
-    print("Esperando que cargue el JS (hasta 30 seg)...")
-    for i in range(30):
-        time.sleep(1)
-        result_raw = drv.execute_script(JS_FIND_INPUTS)
-        import json
-        data = json.loads(result_raw)
-        if data["inputs"] or data["buttons"]:
-            print(f"  -> Elementos encontrados despues de {i+1} seg")
-            break
-        if i % 5 == 4:
-            print(f"  -> {i+1} seg, aun sin elementos...")
-    else:
-        print("  -> Timeout (30 seg). Tomando snapshot de todas formas.")
+        print("Esperando que cargue la pagina (hasta 20 seg)...")
+        time.sleep(3)
 
-    print(f"\nURL final: {drv.current_url}")
+        print(f"\nURL final: {page.url}")
 
-    import json
-    result_raw = drv.execute_script(JS_FIND_INPUTS)
-    data = json.loads(result_raw)
+        # Playwright consulta de inputs y botones en el DOM (incluyendo Shadow DOM automáticamente)
+        inputs = page.locator("input").all()
+        buttons = page.locator("button").all()
 
-    print(f"\n{'='*60}")
-    print(f"  INPUTS encontrados (incluyendo Shadow DOM): {len(data['inputs'])}")
-    print(f"{'='*60}")
-    for i, el in enumerate(data["inputs"]):
-        print(f"\n  [{i}] type        = {el['type']!r}")
-        print(f"       id          = {el['id']!r}")
-        print(f"       name        = {el['name']!r}")
-        print(f"       placeholder = {el['placeholder']!r}")
-        print(f"       class       = {el['className']!r}")
+        print(f"\n{'='*60}")
+        print(f"  INPUTS encontrados por Playwright (incluyendo Shadow DOM): {len(inputs)}")
+        print(f"{'='*60}")
 
-    print(f"\n{'='*60}")
-    print(f"  BUTTONS encontrados (incluyendo Shadow DOM): {len(data['buttons'])}")
-    print(f"{'='*60}")
-    for i, el in enumerate(data["buttons"]):
-        print(f"\n  [{i}] type  = {el['type']!r}")
-        print(f"       id    = {el['id']!r}")
-        print(f"       texto = {el['text']!r}")
-        print(f"       class = {el['className']!r}")
+        for i, inp in enumerate(inputs):
+            try:
+                type_attr = inp.get_attribute("type") or ""
+                id_attr = inp.get_attribute("id") or ""
+                name_attr = inp.get_attribute("name") or ""
+                ph_attr = inp.get_attribute("placeholder") or ""
+                print(f"  [{i}] type={type_attr!r} | id={id_attr!r} | name={name_attr!r} | placeholder={ph_attr!r}")
+            except Exception as e:
+                print(f"  [{i}] Error al inspeccionar elemento: {e}")
 
-    print(f"\n{'='*60}")
-    print(f"  IFRAMES: {len(data['iframes'])}")
-    print(f"{'='*60}")
-    for i, fr in enumerate(data["iframes"]):
-        print(f"  [{i}] src={fr['src'][:80]!r}  name={fr['name']!r}")
+        print(f"\n{'='*60}")
+        print(f"  BUTTONS encontrados por Playwright (incluyendo Shadow DOM): {len(buttons)}")
+        print(f"{'='*60}")
 
-    # HTML del body para referencia
-    print(f"\n{'='*60}")
-    print("  HTML DEL BODY (primeros 4000 chars):")
-    print(f"{'='*60}")
-    try:
-        body_html = drv.execute_script("return document.body.innerHTML;")
-        print(body_html[:4000])
-    except Exception as e:
-        print(f"  Error: {e}")
+        for i, btn in enumerate(buttons):
+            try:
+                text = btn.inner_text().strip()
+                type_attr = btn.get_attribute("type") or ""
+                id_attr = btn.get_attribute("id") or ""
+                print(f"  [{i}] text={text!r} | type={type_attr!r} | id={id_attr!r}")
+            except Exception as e:
+                print(f"  [{i}] Error al inspeccionar boton: {e}")
 
-    print(f"\n{'='*60}")
-    print("  FIN DEL DIAGNOSTICO")
-    print(f"{'='*60}")
-    input("\nPresiona ENTER para cerrar Brave...")
-    drv.quit()
+        print("\nDiagnostico completado con exito.")
+        browser.close()
 
 
 if __name__ == "__main__":
