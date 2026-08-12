@@ -363,7 +363,8 @@ class CommerceHubApp:
     def _rellenar_formulario_gui(self, page: Page, orden: dict) -> bool:
         """
         Rellena la orden en la página actual (PO, Invoice, Tracking, Ship Method, Quantity).
-        Realiza una delimitación estricta al bloque del PO objetivo para evitar escribir en otras órdenes.
+        Realiza una validación estricta y delimitación exclusiva dentro del contenedor del PO.
+        Si el PO no está en la página web actual o no tiene contenedor válido, se aborta sin tocar ninguna casilla.
         """
         try:
             if page.is_closed():
@@ -380,16 +381,19 @@ class CommerceHubApp:
 
         contexts = self._get_contexts(page)
 
-        # 1. Localizar el elemento que contiene el PO objetivo
+        # 1. Localizar nodo visible que contenga el PO objetivo
         po_node = None
-
         for ctx in contexts:
             try:
-                for po_selector in [f"text={po_target}", f"text={po_base}", f"xpath=//*[contains(text(),'{po_base}')]"]:
-                    loc = ctx.locator(po_selector)
-                    if loc.count() > 0:
-                        po_node = loc.first
-                        break
+                locs = ctx.locator(f"xpath=//*[contains(text(),'{po_target}') or contains(text(),'{po_base}')]")
+                count = locs.count()
+                for i in range(count):
+                    cand = locs.nth(i)
+                    if cand.is_visible():
+                        txt = cand.inner_text().strip()
+                        if po_target in txt or po_base in txt:
+                            po_node = cand
+                            break
                 if po_node:
                     break
             except Exception:
@@ -399,20 +403,32 @@ class CommerceHubApp:
             self._log(f"  ❌ PO '{po_target}' (base: {po_base}) NO se encuentra en la página actual del portal.", "err")
             return False
 
-        self._log(f"  ✅ PO '{po_target}' localizado en el portal.", "ok")
-
-        # 2. Localizar el contenedor específico de este PO en la página (o usar locadores relativos XPath)
+        # 2. Localizar el contenedor específico (tarjeta/sección) del PO
         container = None
         try:
-            container_loc = po_node.locator("xpath=./ancestor::*[self::table or self::form or self::fieldset or contains(@class,'order') or contains(@class,'card') or contains(@class,'box') or contains(@class,'panel') or contains(@class,'section')][.//input][1]")
-            if container_loc.count() > 0:
-                container = container_loc.first
+            anc = po_node.locator("xpath=./ancestor::*[.//input[contains(@name,'tracking') or contains(@name,'invoice') or contains(@id,'tracking') or contains(@id,'invoice')]][1]")
+            if anc.count() > 0 and anc.first.is_visible():
+                container = anc.first
         except Exception:
             container = None
 
+        if not container:
+            try:
+                anc = po_node.locator("xpath=./ancestor::*[self::table or self::form or self::fieldset or contains(@class,'order') or contains(@class,'card') or contains(@class,'box')][1]")
+                if anc.count() > 0 and anc.first.is_visible() and anc.first.locator("input").count() > 0:
+                    container = anc.first
+            except Exception:
+                container = None
+
+        if not container:
+            self._log(f"  ❌ No se encontró el recuadro de formulario para el PO '{po_target}'. Se omitirá por seguridad.", "err")
+            return False
+
+        self._log(f"  ✅ PO '{po_target}' localizado y delimitado en su recuadro.", "ok")
+
         exito = True
 
-        # 3. Tracking Number (delimitado al PO)
+        # 3. Tracking Number (ESTRICTAMENTE DENTRO DE CONTAINER)
         selectores_tracking = [
             "input[name='trackingNumber']",
             "input[name='tracking_number']",
@@ -423,23 +439,14 @@ class CommerceHubApp:
             "input[name*='tracking' i]",
         ]
         campo_trk = None
-        if container:
-            for selector in selectores_tracking:
-                try:
-                    loc = container.locator(selector).first
-                    if loc.count() > 0 and loc.is_visible():
-                        campo_trk = loc
-                        break
-                except Exception:
-                    continue
-
-        if not campo_trk and po_node:
+        for selector in selectores_tracking:
             try:
-                loc = po_node.locator("xpath=./following::input[contains(@name,'tracking') or contains(@id,'tracking') or contains(@name,'shipTracking')][1]")
+                loc = container.locator(selector).first
                 if loc.count() > 0 and loc.is_visible():
-                    campo_trk = loc.first
+                    campo_trk = loc
+                    break
             except Exception:
-                pass
+                continue
 
         if campo_trk:
             try:
@@ -449,10 +456,10 @@ class CommerceHubApp:
                 self._log(f"  ❌ Error escribiendo Tracking: {e_trk}", "err")
                 exito = False
         else:
-            self._log(f"  ❌ Campo Tracking Number no encontrado para PO {po_target}", "err")
+            self._log(f"  ❌ Campo Tracking Number no encontrado en la tarjeta del PO {po_target}", "err")
             exito = False
 
-        # 4. Invoice Number (delimitado al PO)
+        # 4. Invoice Number (ESTRICTAMENTE DENTRO DE CONTAINER)
         selectores_invoice = [
             "input[name='invoiceNumber']",
             "input[name='invoice_number']",
@@ -462,23 +469,14 @@ class CommerceHubApp:
             "input[name*='invoice']:not([name*='total'])",
         ]
         campo_inv = None
-        if container:
-            for selector in selectores_invoice:
-                try:
-                    loc = container.locator(selector).first
-                    if loc.count() > 0 and loc.is_visible():
-                        campo_inv = loc
-                        break
-                except Exception:
-                    continue
-
-        if not campo_inv and po_node:
+        for selector in selectores_invoice:
             try:
-                loc = po_node.locator("xpath=./following::input[contains(@name,'invoice') or contains(@id,'invoice')][not(contains(@name,'total'))][1]")
+                loc = container.locator(selector).first
                 if loc.count() > 0 and loc.is_visible():
-                    campo_inv = loc.first
+                    campo_inv = loc
+                    break
             except Exception:
-                pass
+                continue
 
         if campo_inv:
             try:
@@ -488,10 +486,10 @@ class CommerceHubApp:
                 self._log(f"  ❌ Error escribiendo Invoice: {e_inv}", "err")
                 exito = False
         else:
-            self._log(f"  ❌ Campo Invoice Number no encontrado para PO {po_target}", "err")
+            self._log(f"  ❌ Campo Invoice Number no encontrado en la tarjeta del PO {po_target}", "err")
             exito = False
 
-        # 5. Shipping Method Dropdown (delimitado al PO)
+        # 5. Shipping Method Dropdown (ESTRICTAMENTE DENTRO DE CONTAINER)
         selectores_dropdown = [
             "select[name='shipMethod']",
             "select[name='shippingMethod']",
@@ -502,23 +500,14 @@ class CommerceHubApp:
             "select[name*='ship' i]",
         ]
         campo_dropdown = None
-        if container:
-            for selector in selectores_dropdown:
-                try:
-                    loc = container.locator(selector).first
-                    if loc.count() > 0 and loc.is_visible():
-                        campo_dropdown = loc
-                        break
-                except Exception:
-                    continue
-
-        if not campo_dropdown and po_node:
+        for selector in selectores_dropdown:
             try:
-                loc = po_node.locator("xpath=./following::select[contains(@name,'ship') or contains(@id,'ship') or contains(@name,'carrier')][1]")
+                loc = container.locator(selector).first
                 if loc.count() > 0 and loc.is_visible():
-                    campo_dropdown = loc.first
+                    campo_dropdown = loc
+                    break
             except Exception:
-                pass
+                continue
 
         if campo_dropdown:
             try:
@@ -545,33 +534,57 @@ class CommerceHubApp:
         else:
             self._log(f"  ⚠️ Dropdown de Shipping Method no encontrado en el PO {po_target}.", "warn")
 
-        # 6. Ship Quantity (delimitado al PO)
+        # 6. Ship Quantity (ESTRICTAMENTE DENTRO DE CONTAINER, leyendo Quantity Remaining)
         try:
             target_table = None
-            if container:
-                tbls = container.locator("xpath=.//table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP')]]")
-                if tbls.count() > 0:
-                    target_table = tbls.first
-            if not target_table and po_node:
-                tbls = po_node.locator("xpath=./following::table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP')]][1]")
-                if tbls.count() > 0:
-                    target_table = tbls.first
+            tbls = container.locator("xpath=.//table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP') or contains(text(),'REMAINING')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP') or contains(text(),'REMAINING')]]")
+            if tbls.count() > 0:
+                target_table = tbls.first
 
             if target_table:
+                headers_text = [h.strip().upper() for h in target_table.locator("th, tr:first-child td").all_inner_texts()]
+                idx_remaining = -1
+                idx_ship = -1
+
+                for idx, h_text in enumerate(headers_text):
+                    if "REMAINING" in h_text or "QTY REM" in h_text:
+                        idx_remaining = idx
+                    elif "SHIP" in h_text and ("QUANTITY" in h_text or "QTY" in h_text):
+                        idx_ship = idx
+
                 filas = target_table.locator("tr").all()
                 for fila in filas:
                     try:
-                        celdas = fila.locator("td").all_inner_texts()
-                        if len(celdas) >= 2:
-                            texto_rem = next((txt.strip() for txt in celdas if txt.strip().isdigit()), "")
-                            if texto_rem:
-                                input_ship = fila.locator("input").first
-                                if input_ship.count() > 0 and input_ship.is_visible():
-                                    try:
-                                        input_ship.fill(texto_rem)
-                                        self._log(f"  ✅ Ship Quantity: {texto_rem}", "ok")
-                                    except Exception as e_inp:
-                                        self._log(f"  ⚠️ No se pudo escribir Ship Quantity: {e_inp}", "warn")
+                        celdas = fila.locator("td").all()
+                        if not celdas:
+                            continue
+
+                        celdas_txt = [c.inner_text().strip() for c in celdas]
+                        qty_rem_val = ""
+
+                        if idx_remaining != -1 and len(celdas_txt) > idx_remaining:
+                            val_candidate = "".join(c for c in celdas_txt[idx_remaining] if c.isdigit())
+                            if val_candidate:
+                                qty_rem_val = val_candidate
+
+                        if not qty_rem_val:
+                            for idx_c, txt_c in enumerate(celdas_txt):
+                                val_cand = "".join(c for c in txt_c if c.isdigit())
+                                if val_cand and int(val_cand) > 0 and idx_c + 1 < len(celdas_txt):
+                                    if celdas[idx_c + 1].locator("input").count() > 0:
+                                        qty_rem_val = val_cand
+                                        break
+
+                        if qty_rem_val:
+                            input_ship = None
+                            if idx_ship != -1 and len(celdas) > idx_ship:
+                                input_ship = celdas[idx_ship].locator("input").first
+                            if not input_ship or input_ship.count() == 0:
+                                input_ship = fila.locator("input[name*='ship' i], input[name*='quantity' i], input[type='text']").first
+
+                            if input_ship and input_ship.count() > 0 and input_ship.is_visible():
+                                input_ship.fill(qty_rem_val)
+                                self._log(f"  ✅ Ship Quantity (Rem: {qty_rem_val}): {qty_rem_val}", "ok")
                     except Exception:
                         continue
         except Exception as e_qty:
