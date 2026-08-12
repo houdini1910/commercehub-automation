@@ -289,7 +289,7 @@ class CommerceHubApp:
                 )
             else:
                 self.lbl_orden_title.config(
-                    text="🌐  Navegador Abierto — Presiona RELLENAR o RE-RELLENAR CAMPOS en cada orden",
+                    text="🌐  Navegador Abierto — Presiona RELLENAR o RE-RELLENAR CAMPOS",
                     fg=C_SUCCESS
                 )
         self._ui(_f)
