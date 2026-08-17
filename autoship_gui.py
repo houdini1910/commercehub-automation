@@ -26,7 +26,12 @@ from playwright.sync_api import sync_playwright, Page, Browser, TimeoutError as 
 from bs4 import BeautifulSoup
 
 from parse_html import parse_reporte, CLIENTE_OBJETIVO
-from crear_reporte_prueba import generar_html_prueba
+from crear_reporte_prueba import (
+    generar_html_prueba,
+    generar_prueba_single,
+    generar_prueba_batch,
+    generar_prueba_errores,
+)
 
 def obtener_ruta_brave() -> str:
     """Retorna la ruta al ejecutable de Brave encontrada en el sistema."""
@@ -311,21 +316,29 @@ class CommerceHubApp:
             self._log(f"Archivo seleccionado: {Path(ruta).name}", "ok")
 
     def _generar_prueba_gui(self):
-        """Genera un archivo de prueba ficticio y lo selecciona automáticamente."""
+        """Genera un archivo de prueba ficticio para 1 o varias órdenes ingresadas por el usuario."""
         pos_input = simpledialog.askstring(
-            "Crear datos de prueba",
-            "Opcional: Ingresa los PO Numbers a probar separados por coma\n(o deja en blanco para usar POs de prueba por defecto):",
+            "Crear Datos de Prueba",
+            "Ingresa el o los PO Numbers a probar:\n(Para 1 sola orden: 324483789  |  Para varias órdenes: 324483789, 324560193)\n\nDejar en blanco para usar datos de prueba por defecto:",
             parent=self.root
         )
 
+        if pos_input is None:
+            return
+
         pos_lista = None
-        if pos_input and pos_input.strip():
+        if pos_input.strip():
             pos_lista = [p.strip() for p in pos_input.split(",") if p.strip()]
 
         try:
             ruta_salida = generar_html_prueba(pos_lista)
             self.ruta_htm.set(str(ruta_salida.resolve()))
-            self._log(f"✅ Datos de prueba generados: {ruta_salida.name}", "ok")
+            if pos_lista and len(pos_lista) == 1:
+                self._log(f"✅ Datos de prueba generados (1 orden: {pos_lista[0]}): {ruta_salida.name}", "ok")
+            elif pos_lista:
+                self._log(f"✅ Datos de prueba generados ({len(pos_lista)} órdenes): {ruta_salida.name}", "ok")
+            else:
+                self._log(f"✅ Datos de prueba generados por defecto: {ruta_salida.name}", "ok")
         except Exception as e:
             self._log(f"❌ Error al generar datos de prueba: {e}", "err")
 
@@ -489,17 +502,27 @@ class CommerceHubApp:
             self._log(f"  ❌ Campo Invoice Number no encontrado en la tarjeta del PO {po_target}", "err")
             exito = False
 
-        # 5. Shipping Method Dropdown (ESTRICTAMENTE DENTRO DE CONTAINER)
+        # 5. Shipping Method Dropdown (Búsqueda en container y fallback global en página/iframe)
         selectores_dropdown = [
             "select[name='shipMethod']",
             "select[name='shippingMethod']",
             "select[name='ship_method']",
             "select[name='carrierMethod']",
+            "select[name='shipVia']",
+            "select[name='shipping_method']",
             "#shipMethod",
             "#shippingMethod",
+            "#ship_method",
             "select[name*='ship' i]",
+            "select[name*='carrier' i]",
+            "select[name*='method' i]",
+            "select[name*='via' i]",
+            "xpath=//*[contains(text(),'Shipping Method') or contains(text(),'Ship Method') or contains(text(),'Shipping')]/following::select[1]",
+            "xpath=//*[contains(text(),'Shipping Method') or contains(text(),'Ship Method') or contains(text(),'Shipping')]/ancestor::tr//select",
         ]
         campo_dropdown = None
+
+        # Búsqueda inicial en el container
         for selector in selectores_dropdown:
             try:
                 loc = container.locator(selector).first
@@ -509,86 +532,145 @@ class CommerceHubApp:
             except Exception:
                 continue
 
+        # Fallback 1: Búsqueda en el formulario padre o contextos globales
+        if not campo_dropdown:
+            for ctx in contexts:
+                for selector in selectores_dropdown:
+                    try:
+                        loc = ctx.locator(selector).first
+                        if loc.count() > 0 and loc.is_visible():
+                            campo_dropdown = loc
+                            break
+                    except Exception:
+                        continue
+                if campo_dropdown:
+                    break
+
+        # Fallback 2: primer select visible en la página
+        if not campo_dropdown:
+            for ctx in contexts:
+                try:
+                    locs = ctx.locator("select")
+                    for i in range(locs.count()):
+                        cand = locs.nth(i)
+                        if cand.is_visible():
+                            campo_dropdown = cand
+                            break
+                    if campo_dropdown:
+                        break
+                except Exception:
+                    continue
+
         if campo_dropdown:
             try:
                 try:
                     campo_dropdown.select_option(label=ship_via_target)
                     self._log(f"  ✅ Shipping Method: {ship_via_target}", "ok")
                 except Exception:
-                    opciones = campo_dropdown.locator("option").all_inner_texts()
+                    opciones_vals = campo_dropdown.locator("option").evaluate_all(
+                        "opts => opts.map(o => ({text: o.innerText.trim(), val: o.value}))"
+                    )
                     encontrado = False
-                    for opt_txt in opciones:
-                        if ship_via_target.lower() in opt_txt.lower() or opt_txt.lower() in ship_via_target.lower():
-                            campo_dropdown.select_option(label=opt_txt)
-                            self._log(f"  ✅ Shipping Method (coincidencia parcial): {opt_txt}", "ok")
+                    target_lower = ship_via_target.lower().strip()
+
+                    for opt in opciones_vals:
+                        t = opt["text"].lower()
+                        v = opt["val"].lower()
+                        if target_lower in t or t in target_lower or target_lower in v:
+                            campo_dropdown.select_option(value=opt["val"])
+                            self._log(f"  ✅ Shipping Method: {opt['text']}", "ok")
                             encontrado = True
                             break
+
                     if not encontrado:
-                        for opt_txt in opciones:
-                            if "ups" in opt_txt.lower() and "ground" in opt_txt.lower():
-                                campo_dropdown.select_option(label=opt_txt)
-                                self._log(f"  ✅ Shipping Method (fallback UPS Ground): {opt_txt}", "ok")
+                        for opt in opciones_vals:
+                            t = opt["text"].lower()
+                            if "ups" in t and "ground" in t:
+                                campo_dropdown.select_option(value=opt["val"])
+                                self._log(f"  ✅ Shipping Method (fallback UPS Ground): {opt['text']}", "ok")
+                                encontrado = True
+                                break
+
+                    if not encontrado and len(opciones_vals) > 1:
+                        for opt in opciones_vals[1:]:
+                            if opt["text"]:
+                                campo_dropdown.select_option(value=opt["val"])
+                                self._log(f"  ✅ Shipping Method (opción disponible): {opt['text']}", "ok")
+                                encontrado = True
                                 break
             except Exception as e_select:
                 self._log(f"  ⚠️ Error seleccionando Shipping Method: {e_select}", "warn")
         else:
-            self._log(f"  ⚠️ Dropdown de Shipping Method no encontrado en el PO {po_target}.", "warn")
+            self._log(f"  ⚠️ Dropdown de Shipping Method no encontrado en el formulario.", "warn")
 
-        # 6. Ship Quantity (ESTRICTAMENTE DENTRO DE CONTAINER, leyendo Quantity Remaining)
+        # 6. Ship Quantity (Búsqueda en container y fallback en página/iframe)
+        qty_rem_val = "1"  # Valor seguro por defecto para QuickShip
         try:
-            target_table = None
-            tbls = container.locator("xpath=.//table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP') or contains(text(),'REMAINING')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP') or contains(text(),'REMAINING')]]")
-            if tbls.count() > 0:
-                target_table = tbls.first
+            for search_scope in [container] + contexts:
+                try:
+                    txt_rem = search_scope.locator("xpath=//*[contains(text(),'QUANTITY REMAINING') or contains(text(),'REMAINING')]/following::td[1] | //*[contains(text(),'QUANTITY REMAINING') or contains(text(),'REMAINING')]/following::*[1]")
+                    if txt_rem.count() > 0 and txt_rem.first.is_visible():
+                        parsed_num = "".join(c for c in txt_rem.first.inner_text() if c.isdigit())
+                        if parsed_num and int(parsed_num) > 0:
+                            qty_rem_val = parsed_num
+                            break
+                except Exception:
+                    continue
+        except Exception:
+            pass
 
-            if target_table:
-                headers_text = [h.strip().upper() for h in target_table.locator("th, tr:first-child td").all_inner_texts()]
-                idx_remaining = -1
-                idx_ship = -1
+        selectores_ship_qty = [
+            "input[name*='shipQty' i]",
+            "input[name*='ship_qty' i]",
+            "input[name*='shipQuantity' i]",
+            "input[name*='quantityShipped' i]",
+            "input[name*='qtyShipped' i]",
+            "input[name*='ship' i][name*='qty' i]",
+            "input[name*='quantity' i]",
+            "input[name*='qty' i]",
+            "#shipQty",
+            "#ship_qty",
+            "xpath=//*[contains(text(),'SHIP QUANTITY') or contains(text(),'Ship Quantity') or contains(text(),'Ship Qty')]/following::input[1]",
+            "xpath=//table[.//th[contains(text(),'SHIP QUANTITY') or contains(text(),'QUANTITY REMAINING')] or .//td[contains(text(),'SHIP QUANTITY') or contains(text(),'QUANTITY REMAINING')]]//input[not(@type='hidden') and not(@type='submit')]",
+        ]
 
-                for idx, h_text in enumerate(headers_text):
-                    if "REMAINING" in h_text or "QTY REM" in h_text:
-                        idx_remaining = idx
-                    elif "SHIP" in h_text and ("QUANTITY" in h_text or "QTY" in h_text):
-                        idx_ship = idx
+        campos_ship_qty = []
 
-                filas = target_table.locator("tr").all()
-                for fila in filas:
+        # Buscar inputs dentro de container
+        for selector in selectores_ship_qty:
+            try:
+                locs = container.locator(selector)
+                for i in range(locs.count()):
+                    cand = locs.nth(i)
+                    if cand.is_visible() and cand not in campos_ship_qty:
+                        campos_ship_qty.append(cand)
+            except Exception:
+                continue
+
+        # Fallback en el contexto de la página/iframe
+        if not campos_ship_qty:
+            for ctx in contexts:
+                for selector in selectores_ship_qty:
                     try:
-                        celdas = fila.locator("td").all()
-                        if not celdas:
-                            continue
-
-                        celdas_txt = [c.inner_text().strip() for c in celdas]
-                        qty_rem_val = ""
-
-                        if idx_remaining != -1 and len(celdas_txt) > idx_remaining:
-                            val_candidate = "".join(c for c in celdas_txt[idx_remaining] if c.isdigit())
-                            if val_candidate:
-                                qty_rem_val = val_candidate
-
-                        if not qty_rem_val:
-                            for idx_c, txt_c in enumerate(celdas_txt):
-                                val_cand = "".join(c for c in txt_c if c.isdigit())
-                                if val_cand and int(val_cand) > 0 and idx_c + 1 < len(celdas_txt):
-                                    if celdas[idx_c + 1].locator("input").count() > 0:
-                                        qty_rem_val = val_cand
-                                        break
-
-                        if qty_rem_val:
-                            input_ship = None
-                            if idx_ship != -1 and len(celdas) > idx_ship:
-                                input_ship = celdas[idx_ship].locator("input").first
-                            if not input_ship or input_ship.count() == 0:
-                                input_ship = fila.locator("input[name*='ship' i], input[name*='quantity' i], input[type='text']").first
-
-                            if input_ship and input_ship.count() > 0 and input_ship.is_visible():
-                                input_ship.fill(qty_rem_val)
-                                self._log(f"  ✅ Ship Quantity (Rem: {qty_rem_val}): {qty_rem_val}", "ok")
+                        locs = ctx.locator(selector)
+                        for i in range(locs.count()):
+                            cand = locs.nth(i)
+                            if cand.is_visible() and cand not in campos_ship_qty:
+                                campos_ship_qty.append(cand)
                     except Exception:
                         continue
-        except Exception as e_qty:
-            self._log(f"  ⚠️ Error procesando Ship Quantity: {e_qty}", "warn")
+                if campos_ship_qty:
+                    break
+
+        if campos_ship_qty:
+            for input_qty in campos_ship_qty:
+                try:
+                    input_qty.fill(qty_rem_val)
+                    self._log(f"  ✅ Ship Quantity rellenado: {qty_rem_val}", "ok")
+                except Exception as e_fill_qty:
+                    self._log(f"  ⚠️ Error rellenando Ship Quantity: {e_fill_qty}", "warn")
+        else:
+            self._log(f"  ⚠️ Campo Ship Quantity no encontrado en el formulario.", "warn")
 
         return exito
 
