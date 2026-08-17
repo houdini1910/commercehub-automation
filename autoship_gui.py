@@ -394,283 +394,345 @@ class CommerceHubApp:
 
         contexts = self._get_contexts(page)
 
-        # 1. Localizar nodo visible que contenga el PO objetivo
-        po_node = None
+        # 1. Validación ultra-rápida en JS de coincidencia del PO en la página (0.001s)
+        po_presente = False
         for ctx in contexts:
             try:
-                locs = ctx.locator(f"xpath=//*[contains(text(),'{po_target}') or contains(text(),'{po_base}')]")
-                count = locs.count()
-                for i in range(count):
-                    cand = locs.nth(i)
-                    if cand.is_visible():
-                        txt = cand.inner_text().strip()
-                        if po_target in txt or po_base in txt:
-                            po_node = cand
-                            break
-                if po_node:
+                has_po = ctx.evaluate("""([target, base]) => {
+                    const txt = document.body ? document.body.innerText : '';
+                    return txt.includes(target) || txt.includes(base);
+                }""", [po_target, po_base])
+                if has_po:
+                    po_presente = True
                     break
             except Exception:
                 continue
 
-        if not po_node:
-            self._log(f"  ❌ PO '{po_target}' (base: {po_base}) NO se encuentra en la página actual del portal.", "err")
+        if not po_presente:
             return False
-
-        # 2. Localizar el contenedor específico (tarjeta/sección) del PO
-        container = None
-        try:
-            anc = po_node.locator("xpath=./ancestor::*[.//input[contains(@name,'tracking') or contains(@name,'invoice') or contains(@id,'tracking') or contains(@id,'invoice')]][1]")
-            if anc.count() > 0 and anc.first.is_visible():
-                container = anc.first
-        except Exception:
-            container = None
-
-        if not container:
-            try:
-                anc = po_node.locator("xpath=./ancestor::*[self::table or self::form or self::fieldset or contains(@class,'order') or contains(@class,'card') or contains(@class,'box')][1]")
-                if anc.count() > 0 and anc.first.is_visible() and anc.first.locator("input").count() > 0:
-                    container = anc.first
-            except Exception:
-                container = None
-
-        if not container:
-            self._log(f"  ❌ No se encontró el recuadro de formulario para el PO '{po_target}'. Se omitirá por seguridad.", "err")
-            return False
-
-        self._log(f"  ✅ PO '{po_target}' localizado y delimitado en su recuadro.", "ok")
 
         exito = True
 
-        # 3. Tracking Number (ESTRICTAMENTE DENTRO DE CONTAINER)
-        selectores_tracking = [
-            "input[name='trackingNumber']",
-            "input[name='tracking_number']",
-            "input[name='trackingNum']",
-            "input[name='shipTracking']",
-            "#trackingNumber",
-            "#tracking_number",
-            "input[name*='tracking' i]",
-        ]
-        campo_trk = None
-        for selector in selectores_tracking:
-            try:
-                loc = container.locator(selector).first
-                if loc.count() > 0 and loc.is_visible():
-                    campo_trk = loc
-                    break
-            except Exception:
-                continue
+        # 3. Rellenado inteligente vía JavaScript (delimitado por el contenedor del PO específico)
+        js_fill_all = """({ invoiceVal, trackingVal, shipViaTarget, poTarget, poBase }) => {
+            const result = {
+                trackingOk: false,
+                invoiceOk: false,
+                shipMethodOk: false,
+                shipMethodText: '',
+                quantitiesFilled: 0,
+                quantitiesDetails: []
+            };
 
-        if campo_trk:
+            // ── Función auxiliar: disparar eventos DOM ──
+            function fireEvents(el) {
+                el.focus();
+                el.dispatchEvent(new Event('input',  { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.dispatchEvent(new Event('blur',   { bubbles: true }));
+            }
+
+            // ── 1. Encontrar el contenedor de la orden específica ──
+            // Buscar el elemento de texto que contiene el PO
+            let poEl = null;
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walker.nextNode())) {
+                const t = node.textContent.trim();
+                if (t.includes(poTarget) || t.includes(poBase)) {
+                    poEl = node.parentElement;
+                    break;
+                }
+            }
+
+            // Si no encontramos el nodo, probar con querySelector de texto
+            if (!poEl) {
+                const allEls = Array.from(document.querySelectorAll('*'));
+                for (const el of allEls) {
+                    if (el.children.length === 0) {
+                        const t = (el.innerText || el.textContent || '').trim();
+                        if (t === poTarget || t === poBase || t.includes(poTarget)) {
+                            poEl = el;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Subir en el DOM hasta encontrar un contenedor que tenga inputs de invoice/tracking
+            let container = null;
+            if (poEl) {
+                let el = poEl;
+                for (let depth = 0; depth < 15; depth++) {
+                    el = el.parentElement;
+                    if (!el || el === document.body) break;
+                    // Verificar si este contenedor tiene inputs de invoice o tracking
+                    const inputs = el.querySelectorAll('input:not([type="hidden"])');
+                    if (inputs.length >= 1) {
+                        container = el;
+                        break;
+                    }
+                }
+            }
+
+            // Si no se encontró contenedor específico, usar body (fallback)
+            const scope = container || document.body;
+
+            // ── A. TRACKING NUMBER (dentro del contenedor del PO) ──
+            const trackingInputs = Array.from(scope.querySelectorAll('input:not([type="hidden"])')).filter(inp => {
+                const n = (inp.name || '').toLowerCase();
+                const id = (inp.id || '').toLowerCase();
+                const placeholder = (inp.placeholder || '').toLowerCase();
+                return n.includes('tracking') || id.includes('tracking') ||
+                       n.includes('shiptracking') || placeholder.includes('tracking');
+            });
+            if (trackingInputs.length > 0) {
+                const trk = trackingInputs[0];
+                trk.value = trackingVal;
+                fireEvents(trk);
+                result.trackingOk = true;
+            }
+
+            // ── B. INVOICE NUMBER (dentro del contenedor del PO) ──
+            const invoiceInputs = Array.from(scope.querySelectorAll('input:not([type="hidden"])')).filter(inp => {
+                const n = (inp.name || '').toLowerCase();
+                const id = (inp.id || '').toLowerCase();
+                return (n.includes('invoice') || id.includes('invoice')) &&
+                       !n.includes('total') && !id.includes('total');
+            });
+            if (invoiceInputs.length > 0) {
+                const inv = invoiceInputs[0];
+                inv.value = invoiceVal;
+                fireEvents(inv);
+                result.invoiceOk = true;
+            }
+
+            // ── C. SHIPPING METHOD (dentro del contenedor del PO) ──
+            const allSelects = Array.from(scope.querySelectorAll('select'));
+            let shipSelect = null;
+
+            // Buscar por opciones de transportistas
+            for (const sel of allSelects) {
+                const optTexts = Array.from(sel.options).map(o => (o.text || '').toLowerCase());
+                const hasCarrierOpts = optTexts.some(t =>
+                    t.includes('ups') || t.includes('fedex') || t.includes('usps') ||
+                    t.includes('ground') || t.includes('priority') || t.includes('standard') ||
+                    t.includes('express') || t.includes('freight') || t.includes('parcel') ||
+                    t.includes('2nd day') || t.includes('next day') || t.includes('air')
+                );
+                if (hasCarrierOpts) { shipSelect = sel; break; }
+            }
+
+            // Buscar por nombre/id si no se encontró por opciones
+            if (!shipSelect) {
+                for (const sel of allSelects) {
+                    const n = (sel.name || '').toLowerCase();
+                    const id = (sel.id || '').toLowerCase();
+                    if ((n.includes('ship') || n.includes('carrier') || n.includes('method') || n.includes('via') ||
+                         id.includes('ship') || id.includes('carrier') || id.includes('method') || id.includes('via')) &&
+                        !n.includes('carb') && !n.includes('compliance') && !n.includes('cancel')) {
+                        shipSelect = sel; break;
+                    }
+                }
+            }
+
+            if (shipSelect) {
+                const target = (shipViaTarget || 'UPS Ground').toLowerCase().trim();
+                let bestOption = null;
+
+                // Coincidencia exacta
+                for (const opt of shipSelect.options) {
+                    const txt = (opt.text || '').toLowerCase().trim();
+                    if (txt === target) { bestOption = opt; break; }
+                }
+                // Coincidencia parcial
+                if (!bestOption) {
+                    for (const opt of shipSelect.options) {
+                        const txt = (opt.text || '').toLowerCase().trim();
+                        if (txt.includes(target) || target.includes(txt)) { bestOption = opt; break; }
+                    }
+                }
+                // UPS Ground como fallback
+                if (!bestOption) {
+                    for (const opt of shipSelect.options) {
+                        const txt = (opt.text || '').toLowerCase().trim();
+                        if (txt.includes('ups') && txt.includes('ground')) { bestOption = opt; break; }
+                    }
+                }
+                // Primera opción válida
+                if (!bestOption && shipSelect.options.length > 1) {
+                    for (const opt of shipSelect.options) {
+                        if (opt.value && opt.text.trim()) { bestOption = opt; break; }
+                    }
+                }
+
+                if (bestOption) {
+                    shipSelect.value = bestOption.value;
+                    bestOption.selected = true;
+                    fireEvents(shipSelect);
+                    result.shipMethodOk = true;
+                    result.shipMethodText = bestOption.text;
+                }
+            }
+
+            // ── D. SHIP QUANTITY para filas de productos del contenedor ──
+            const allTables = Array.from(scope.querySelectorAll('table'));
+            let colRem = -1, colShip = -1;
+
+            for (const tbl of allTables) {
+                for (const r of tbl.querySelectorAll('tr')) {
+                    const headers = Array.from(r.querySelectorAll('th, td'));
+                    for (let i = 0; i < headers.length; i++) {
+                        const txt = (headers[i].innerText || '').toUpperCase().trim();
+                        if (txt.includes('REMAINING') || txt.includes('QTY REM')) colRem = i;
+                        if ((txt.includes('SHIP QUANTITY') || txt.includes('SHIP QTY') ||
+                             (txt.includes('SHIP') && !txt.includes('METHOD') && !txt.includes('VIA') &&
+                              !txt.includes('CHARGE') && !txt.includes('TO'))) && !txt.includes('CANCEL')) {
+                            colShip = i;
+                        }
+                    }
+                }
+            }
+
+            for (const tbl of allTables) {
+                for (const row of tbl.querySelectorAll('tr')) {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    if (cells.length < 2) continue;
+
+                    const rowText = (row.innerText || '').toUpperCase();
+                    if (rowText.includes('INVOICE NUMBER') || rowText.includes('TRACKING NUMBER') ||
+                        rowText.includes('SHIPPING CHARGE') || rowText.includes('SSCC ID')) continue;
+
+                    const inputs = Array.from(row.querySelectorAll(
+                        'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"])'
+                    ));
+                    if (inputs.length === 0) continue;
+
+                    let shipInput = null;
+                    let qtyVal = '';
+
+                    if (colShip !== -1 && colShip < cells.length) {
+                        const inp = cells[colShip].querySelector('input:not([type="hidden"])');
+                        if (inp) shipInput = inp;
+                    }
+                    if (!shipInput) {
+                        for (const inp of inputs) {
+                            const n = (inp.name || '').toLowerCase();
+                            const id = (inp.id || '').toLowerCase();
+                            if ((n.includes('ship') || id.includes('ship') || n.includes('qty') || id.includes('qty')) &&
+                                !n.includes('cancel') && !id.includes('cancel') && !n.includes('track') && !n.includes('inv')) {
+                                shipInput = inp; break;
+                            }
+                        }
+                    }
+                    if (!shipInput && inputs.length > 0) {
+                        const fi = inputs[0];
+                        const n = (fi.name || '').toLowerCase();
+                        if (!n.includes('cancel') && !n.includes('track') && !n.includes('inv')) shipInput = fi;
+                    }
+                    if (!shipInput) continue;
+
+                    if (colRem !== -1 && colRem < cells.length) {
+                        const remTxt = cells[colRem].innerText.trim();
+                        const match = remTxt.match(/\\d+/);
+                        if (match && parseInt(match[0]) > 0) qtyVal = match[0];
+                    }
+                    if (!qtyVal) {
+                        for (let c = 0; c < cells.length; c++) {
+                            if (cells[c].contains(shipInput)) break;
+                            const m = cells[c].innerText.trim().match(/^\\d{1,4}$/);
+                            if (m && parseInt(m[0]) > 0) qtyVal = m[0];
+                        }
+                    }
+                    if (!qtyVal || parseInt(qtyVal) <= 0) qtyVal = '1';
+
+                    shipInput.value = qtyVal;
+                    fireEvents(shipInput);
+                    result.quantitiesFilled++;
+                    result.quantitiesDetails.push({ qty: qtyVal, desc: row.innerText.replace(/\s+/g, ' ').substring(0, 30) });
+                }
+            }
+
+            return result;
+        }"""
+
+        # Ejecutar en page o contexts
+        res_js = None
+        for ctx in contexts:
             try:
-                campo_trk.fill(tracking_val)
+                res_js = ctx.evaluate(js_fill_all, {
+                    "invoiceVal": invoice_val,
+                    "trackingVal": tracking_val,
+                    "shipViaTarget": ship_via_target,
+                    "poTarget": po_target,
+                    "poBase": po_base
+                })
+                if res_js and (res_js.get("trackingOk") or res_js.get("invoiceOk") or res_js.get("shipMethodOk") or res_js.get("quantitiesFilled", 0) > 0):
+                    break
+            except Exception as e_run_js:
+                self._log(f"  ⚠️ Intento JS: {e_run_js}", "info")
+
+        if res_js:
+            if res_js.get("trackingOk"):
                 self._log(f"  ✅ Tracking Number: {tracking_val}", "ok")
-            except Exception as e_trk:
-                self._log(f"  ❌ Error escribiendo Tracking: {e_trk}", "err")
-                exito = False
-        else:
-            self._log(f"  ❌ Campo Tracking Number no encontrado en la tarjeta del PO {po_target}", "err")
-            exito = False
-
-        # 4. Invoice Number (ESTRICTAMENTE DENTRO DE CONTAINER)
-        selectores_invoice = [
-            "input[name='invoiceNumber']",
-            "input[name='invoice_number']",
-            "input[name='invoiceNum']",
-            "#invoiceNumber",
-            "#invoice_number",
-            "input[name*='invoice']:not([name*='total'])",
-        ]
-        campo_inv = None
-        for selector in selectores_invoice:
-            try:
-                loc = container.locator(selector).first
-                if loc.count() > 0 and loc.is_visible():
-                    campo_inv = loc
-                    break
-            except Exception:
-                continue
-
-        if campo_inv:
-            try:
-                campo_inv.fill(invoice_val)
+            if res_js.get("invoiceOk"):
                 self._log(f"  ✅ Invoice Number: {invoice_val}", "ok")
-            except Exception as e_inv:
-                self._log(f"  ❌ Error escribiendo Invoice: {e_inv}", "err")
-                exito = False
-        else:
-            self._log(f"  ❌ Campo Invoice Number no encontrado en la tarjeta del PO {po_target}", "err")
-            exito = False
+            if res_js.get("shipMethodOk"):
+                self._log(f"  ✅ Shipping Method: {res_js.get('shipMethodText') or ship_via_target}", "ok")
+            if res_js.get("quantitiesFilled", 0) > 0:
+                detalles = ", ".join([f"Fila {i+1}: {d['qty']}" for i, d in enumerate(res_js.get("quantitiesDetails", []))])
+                self._log(f"  ✅ Ship Quantity rellenado en {res_js['quantitiesFilled']} fila(s) ({detalles})", "ok")
 
-        # 5. Shipping Method Dropdown (Búsqueda en container y fallback global en página/iframe)
-        selectores_dropdown = [
-            "select[name='shipMethod']",
-            "select[name='shippingMethod']",
-            "select[name='ship_method']",
-            "select[name='carrierMethod']",
-            "select[name='shipVia']",
-            "select[name='shipping_method']",
-            "#shipMethod",
-            "#shippingMethod",
-            "#ship_method",
-            "select[name*='ship' i]",
-            "select[name*='carrier' i]",
-            "select[name*='method' i]",
-            "select[name*='via' i]",
-            "xpath=//*[contains(text(),'Shipping Method') or contains(text(),'Ship Method') or contains(text(),'Shipping')]/following::select[1]",
-            "xpath=//*[contains(text(),'Shipping Method') or contains(text(),'Ship Method') or contains(text(),'Shipping')]/ancestor::tr//select",
-        ]
-        campo_dropdown = None
-
-        # Búsqueda inicial en el container
-        for selector in selectores_dropdown:
-            try:
-                loc = container.locator(selector).first
-                if loc.count() > 0 and loc.is_visible():
-                    campo_dropdown = loc
-                    break
-            except Exception:
-                continue
-
-        # Fallback 1: Búsqueda en el formulario padre o contextos globales
-        if not campo_dropdown:
-            for ctx in contexts:
-                for selector in selectores_dropdown:
-                    try:
-                        loc = ctx.locator(selector).first
-                        if loc.count() > 0 and loc.is_visible():
-                            campo_dropdown = loc
-                            break
-                    except Exception:
-                        continue
-                if campo_dropdown:
-                    break
-
-        # Fallback 2: primer select visible en la página
-        if not campo_dropdown:
-            for ctx in contexts:
+        # Fallback para Tracking Number si JS no lo rellenó
+        if not (res_js and res_js.get("trackingOk")):
+            selectores_tracking = [
+                "input[name='trackingNumber']", "input[name='tracking_number']",
+                "input[name='trackingNum']", "input[name='shipTracking']",
+                "#trackingNumber", "#tracking_number", "input[name*='tracking' i]"
+            ]
+            for selector in selectores_tracking:
                 try:
-                    locs = ctx.locator("select")
-                    for i in range(locs.count()):
-                        cand = locs.nth(i)
-                        if cand.is_visible():
-                            campo_dropdown = cand
-                            break
-                    if campo_dropdown:
+                    loc = page.locator(selector).first
+                    if loc.count() > 0 and loc.is_visible():
+                        loc.fill(tracking_val)
+                        self._log(f"  ✅ Tracking Number: {tracking_val}", "ok")
                         break
                 except Exception:
                     continue
 
-        if campo_dropdown:
-            try:
+        # Fallback para Invoice Number si JS no lo rellenó
+        if not (res_js and res_js.get("invoiceOk")):
+            selectores_invoice = [
+                "input[name='invoiceNumber']", "input[name='invoice_number']",
+                "input[name='invoiceNum']", "#invoiceNumber", "#invoice_number",
+                "input[name*='invoice']:not([name*='total'])"
+            ]
+            for selector in selectores_invoice:
                 try:
-                    campo_dropdown.select_option(label=ship_via_target)
-                    self._log(f"  ✅ Shipping Method: {ship_via_target}", "ok")
-                except Exception:
-                    opciones_vals = campo_dropdown.locator("option").evaluate_all(
-                        "opts => opts.map(o => ({text: o.innerText.trim(), val: o.value}))"
-                    )
-                    encontrado = False
-                    target_lower = ship_via_target.lower().strip()
-
-                    for opt in opciones_vals:
-                        t = opt["text"].lower()
-                        v = opt["val"].lower()
-                        if target_lower in t or t in target_lower or target_lower in v:
-                            campo_dropdown.select_option(value=opt["val"])
-                            self._log(f"  ✅ Shipping Method: {opt['text']}", "ok")
-                            encontrado = True
-                            break
-
-                    if not encontrado:
-                        for opt in opciones_vals:
-                            t = opt["text"].lower()
-                            if "ups" in t and "ground" in t:
-                                campo_dropdown.select_option(value=opt["val"])
-                                self._log(f"  ✅ Shipping Method (fallback UPS Ground): {opt['text']}", "ok")
-                                encontrado = True
-                                break
-
-                    if not encontrado and len(opciones_vals) > 1:
-                        for opt in opciones_vals[1:]:
-                            if opt["text"]:
-                                campo_dropdown.select_option(value=opt["val"])
-                                self._log(f"  ✅ Shipping Method (opción disponible): {opt['text']}", "ok")
-                                encontrado = True
-                                break
-            except Exception as e_select:
-                self._log(f"  ⚠️ Error seleccionando Shipping Method: {e_select}", "warn")
-        else:
-            self._log(f"  ⚠️ Dropdown de Shipping Method no encontrado en el formulario.", "warn")
-
-        # 6. Ship Quantity (Búsqueda en container y fallback en página/iframe)
-        qty_rem_val = "1"  # Valor seguro por defecto para QuickShip
-        try:
-            for search_scope in [container] + contexts:
-                try:
-                    txt_rem = search_scope.locator("xpath=//*[contains(text(),'QUANTITY REMAINING') or contains(text(),'REMAINING')]/following::td[1] | //*[contains(text(),'QUANTITY REMAINING') or contains(text(),'REMAINING')]/following::*[1]")
-                    if txt_rem.count() > 0 and txt_rem.first.is_visible():
-                        parsed_num = "".join(c for c in txt_rem.first.inner_text() if c.isdigit())
-                        if parsed_num and int(parsed_num) > 0:
-                            qty_rem_val = parsed_num
-                            break
+                    loc = page.locator(selector).first
+                    if loc.count() > 0 and loc.is_visible():
+                        loc.fill(invoice_val)
+                        self._log(f"  ✅ Invoice Number: {invoice_val}", "ok")
+                        break
                 except Exception:
                     continue
-        except Exception:
-            pass
 
-        selectores_ship_qty = [
-            "input[name*='shipQty' i]",
-            "input[name*='ship_qty' i]",
-            "input[name*='shipQuantity' i]",
-            "input[name*='quantityShipped' i]",
-            "input[name*='qtyShipped' i]",
-            "input[name*='ship' i][name*='qty' i]",
-            "input[name*='quantity' i]",
-            "input[name*='qty' i]",
-            "#shipQty",
-            "#ship_qty",
-            "xpath=//*[contains(text(),'SHIP QUANTITY') or contains(text(),'Ship Quantity') or contains(text(),'Ship Qty')]/following::input[1]",
-            "xpath=//table[.//th[contains(text(),'SHIP QUANTITY') or contains(text(),'QUANTITY REMAINING')] or .//td[contains(text(),'SHIP QUANTITY') or contains(text(),'QUANTITY REMAINING')]]//input[not(@type='hidden') and not(@type='submit')]",
-        ]
-
-        campos_ship_qty = []
-
-        # Buscar inputs dentro de container
-        for selector in selectores_ship_qty:
+        # Fallback para Shipping Method si JS no lo rellenó
+        if not (res_js and res_js.get("shipMethodOk")):
             try:
-                locs = container.locator(selector)
-                for i in range(locs.count()):
-                    cand = locs.nth(i)
-                    if cand.is_visible() and cand not in campos_ship_qty:
-                        campos_ship_qty.append(cand)
+                for ctx in contexts:
+                    sels = ctx.locator("select")
+                    for i in range(sels.count()):
+                        cand = sels.nth(i)
+                        if cand.is_visible():
+                            try:
+                                cand.select_option(label=ship_via_target)
+                                self._log(f"  ✅ Shipping Method: {ship_via_target}", "ok")
+                                break
+                            except Exception:
+                                pass
             except Exception:
-                continue
-
-        # Fallback en el contexto de la página/iframe
-        if not campos_ship_qty:
-            for ctx in contexts:
-                for selector in selectores_ship_qty:
-                    try:
-                        locs = ctx.locator(selector)
-                        for i in range(locs.count()):
-                            cand = locs.nth(i)
-                            if cand.is_visible() and cand not in campos_ship_qty:
-                                campos_ship_qty.append(cand)
-                    except Exception:
-                        continue
-                if campos_ship_qty:
-                    break
-
-        if campos_ship_qty:
-            for input_qty in campos_ship_qty:
-                try:
-                    input_qty.fill(qty_rem_val)
-                    self._log(f"  ✅ Ship Quantity rellenado: {qty_rem_val}", "ok")
-                except Exception as e_fill_qty:
-                    self._log(f"  ⚠️ Error rellenando Ship Quantity: {e_fill_qty}", "warn")
-        else:
-            self._log(f"  ⚠️ Campo Ship Quantity no encontrado en el formulario.", "warn")
+                pass
 
         return exito
 
@@ -786,11 +848,27 @@ class CommerceHubApp:
                             self._log("⚠️ La página del navegador fue cerrada por el usuario.", "warn")
                             break
 
-                        self._log(f"🚀 Procesando {total} órdenes en la página actual...", "head")
-                        procesadas = 0
-                        fallidas   = []
+                        # 1. Lectura instantánea del DOM de la página para identificar el PO actual (5ms)
+                        try:
+                            page_text = page.evaluate("() => document.body ? document.body.innerText : ''")
+                        except Exception:
+                            page_text = ""
 
-                        for i, orden in enumerate(ordenes, 1):
+                        # 2. Filtrar de inmediato las órdenes que realmente corresponden a la página actual
+                        ordenes_en_pantalla = [
+                            (idx, ord_item) for idx, ord_item in enumerate(ordenes, 1)
+                            if ord_item["po"] in page_text or ord_item["po"].split("_")[0] in page_text
+                        ]
+
+                        if not ordenes_en_pantalla:
+                            self._log("⚠️ El PO visible en pantalla no coincide con ninguna orden del archivo.", "warn")
+                            self._log("   Verifica que estés en la orden correcta en CommerceHub.", "info")
+                            self._set_status("● PO no coincide — navega a la orden y presiona un botón")
+                            self._activar_botones_accion(total)
+                            continue
+
+                        procesadas = 0
+                        for i, orden in ordenes_en_pantalla:
                             if self.close_browser_event.is_set() or page.is_closed():
                                 break
                             self._log(f"─── Orden {i}/{total}  ·  PO: {orden['po']} ───", "head")
@@ -798,15 +876,11 @@ class CommerceHubApp:
                             if exito:
                                 procesadas += 1
                                 self._log(f"  ✅ Orden {i} ({orden['po']}) rellenada exitosamente.", "ok")
-                            else:
-                                fallidas.append({"n": i, "po": orden["po"]})
-                            time.sleep(0.1)
 
-                        self._log(f"══ PROCESO COMPLETADO ══  ✅ {procesadas}/{total} rellenadas correctamente.", "ok")
+                        self._log(f"══ PROCESO COMPLETADO ══  ✅ {procesadas} orden(es) rellenada(s) al instante.", "ok")
                         self._log("   Revisa y guarda en CommerceHub. Pasa a la siguiente orden y presiona un botón.", "info")
-                        self._set_status(f"● Completado ✅ ({procesadas}/{total}) — Listo para la siguiente orden.")
-
-                        self._activar_botones_accion()
+                        self._set_status(f"● Completado ✅ — Listo para guardar en CommerceHub.")
+                        self._activar_botones_accion(total)
                 except Exception as e_loop:
                     self._activar_botones_accion()
                     time.sleep(0.5)

@@ -329,27 +329,180 @@ def rellenar_formulario(page: Page, orden: dict, log: logging.Logger) -> bool:
     else:
         log.warning(f"  ⚠️  Dropdown de Shipping Method no encontrado en el formulario.")
 
-    # ── CAMPO: Ship Quantity (copiar desde Quantity Remaining) ─────────────
+    # ── CAMPO: Ship Quantity (copiar desde Quantity Remaining para todas las filas) ──
+    filas_procesadas = 0
+    js_rellenar_filas = """() => {
+        let resultados = [];
+        const tables = Array.from(document.querySelectorAll('table'));
+        for (const tbl of tables) {
+            const allRows = Array.from(tbl.querySelectorAll('tr'));
+            if (allRows.length === 0) continue;
+            
+            let colRem = -1;
+            let colShip = -1;
+            let colCancel = -1;
+            
+            for (const row of allRows) {
+                const headers = Array.from(row.querySelectorAll('th, td'));
+                for (let i = 0; i < headers.length; i++) {
+                    const txt = (headers[i].innerText || '').toUpperCase().trim();
+                    if (txt.includes('REMAINING') || txt.includes('QTY REM') || txt.includes('QUANTITY REMAINING')) {
+                        colRem = i;
+                    }
+                    if ((txt.includes('SHIP QUANTITY') || txt.includes('SHIP QTY') || txt.includes('SHIPPED') || (txt.includes('SHIP') && !txt.includes('METHOD') && !txt.includes('VIA') && !txt.includes('CHARGE') && !txt.includes('TO'))) && !txt.includes('CANCEL')) {
+                        colShip = i;
+                    }
+                    if (txt.includes('CANCEL')) {
+                        colCancel = i;
+                    }
+                }
+                if (colRem !== -1 || colShip !== -1) break;
+            }
+            
+            if (colRem === -1 && colShip === -1 && !tbl.innerText.toUpperCase().includes('QUANTITY')) {
+                continue;
+            }
+            
+            for (const row of allRows) {
+                const cells = Array.from(row.querySelectorAll('td'));
+                if (cells.length < 2) continue;
+                if (row.querySelectorAll('th').length > 0 && row.querySelectorAll('input').length === 0) continue;
+                
+                let shipInput = null;
+                let qtyVal = "";
+                
+                if (colShip !== -1 && colShip < cells.length) {
+                    shipInput = cells[colShip].querySelector('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"])');
+                }
+                
+                if (colRem !== -1 && colRem < cells.length) {
+                    const remText = cells[colRem].innerText.trim();
+                    const match = remText.match(/\\d+/);
+                    if (match && parseInt(match[0]) > 0) {
+                        qtyVal = match[0];
+                    }
+                }
+                
+                if (!shipInput) {
+                    const inputs = Array.from(row.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"])'));
+                    for (const inp of inputs) {
+                        const name = (inp.name || '').toLowerCase();
+                        const id = (inp.id || '').toLowerCase();
+                        if ((name.includes('ship') || id.includes('ship') || name.includes('qty') || id.includes('qty')) && !name.includes('cancel') && !id.includes('cancel')) {
+                            shipInput = inp;
+                            break;
+                        }
+                    }
+                    if (!shipInput && inputs.length > 0) {
+                        const firstInp = inputs[0];
+                        const name = (firstInp.name || '').toLowerCase();
+                        if (!name.includes('cancel')) {
+                            shipInput = firstInp;
+                        }
+                    }
+                }
+                
+                if (shipInput && !qtyVal) {
+                    for (let c = 0; c < cells.length; c++) {
+                        if (cells[c].contains(shipInput)) break;
+                        const cTxt = cells[c].innerText.trim();
+                        const match = cTxt.match(/^\\d{1,4}$/);
+                        if (match && parseInt(match[0]) > 0) {
+                            qtyVal = match[0];
+                        }
+                    }
+                }
+                
+                if (shipInput) {
+                    if (!qtyVal || parseInt(qtyVal) <= 0) {
+                        qtyVal = "1";
+                    }
+                    
+                    shipInput.focus();
+                    shipInput.value = qtyVal;
+                    shipInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    shipInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    shipInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                    
+                    resultados.push({
+                        qty: qtyVal,
+                        desc: row.innerText.replace(/\\s+/g, ' ').substring(0, 35)
+                    });
+                }
+            }
+            if (resultados.length > 0) break;
+        }
+        return resultados;
+    }"""
+
     try:
-        inputs_rellenados = 0
-        filas = page.locator("xpath=//table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP')]]//tr").all()
-        for fila in filas:
-            celdas = fila.locator("td").all_inner_texts()
-            if len(celdas) >= 2:
-                texto_rem = next((txt.strip() for txt in celdas if txt.strip().isdigit()), "")
-                if texto_rem:
-                    input_ship = fila.locator("input").first
-                    if input_ship.count() > 0:
+        res_js = page.evaluate(js_rellenar_filas)
+        if res_js and len(res_js) > 0:
+            filas_procesadas = len(res_js)
+            valores_str = ", ".join([f"Fila {idx+1}: {r['qty']}" for idx, r in enumerate(res_js)])
+            log.info(f"  ✅ Ship Quantity rellenado en {filas_procesadas} fila(s) ({valores_str})")
+    except Exception as e_js:
+        log.warning(f"  ⚠️ Intento JS Ship Quantity: {e_js}")
+
+    if filas_procesadas == 0:
+        try:
+            tablas = page.locator("xpath=//table[.//th[contains(text(),'QUANTITY') or contains(text(),'SHIP')] or .//td[contains(text(),'QUANTITY') or contains(text(),'SHIP')]]")
+            for t_idx in range(tablas.count()):
+                tbl = tablas.nth(t_idx)
+                filas = tbl.locator("tr")
+                col_rem_idx = -1
+                col_ship_idx = -1
+
+                for r_idx in range(min(3, filas.count())):
+                    ths = filas.nth(r_idx).locator("th, td")
+                    for h_idx in range(ths.count()):
+                        h_txt = ths.nth(h_idx).inner_text().upper()
+                        if "REMAINING" in h_txt:
+                            col_rem_idx = h_idx
+                        if "SHIP QUANTITY" in h_txt or "SHIP QTY" in h_txt:
+                            col_ship_idx = h_idx
+                    if col_rem_idx != -1 or col_ship_idx != -1:
+                        break
+
+                for r_idx in range(filas.count()):
+                    fila = filas.nth(r_idx)
+                    tds = fila.locator("td")
+                    if tds.count() < 2:
+                        continue
+
+                    qty_val = "1"
+                    if col_rem_idx != -1 and col_rem_idx < tds.count():
+                        raw_rem = tds.nth(col_rem_idx).inner_text().strip()
+                        nums = "".join(c for c in raw_rem if c.isdigit())
+                        if nums and int(nums) > 0:
+                            qty_val = nums
+
+                    input_ship = None
+                    if col_ship_idx != -1 and col_ship_idx < tds.count():
+                        inps = tds.nth(col_ship_idx).locator("input:not([type='hidden'])")
+                        if inps.count() > 0:
+                            input_ship = inps.first
+
+                    if not input_ship:
+                        inps = fila.locator("input:not([type='hidden']):not([name*='cancel' i])")
+                        if inps.count() > 0:
+                            input_ship = inps.first
+
+                    if input_ship and input_ship.is_visible():
                         try:
-                            input_ship.fill(texto_rem)
-                            inputs_rellenados += 1
-                            log.info(f"  ✅ Ship Quantity: {texto_rem} (de Quantity Remaining)")
-                        except Exception as e_inp:
-                            log.warning(f"  ⚠️ No se pudo escribir Ship Quantity: {e_inp}")
-        if inputs_rellenados == 0:
-            log.warning("  ⚠️ No se encontraron campos de Ship Quantity en esta orden.")
-    except Exception as e_qty:
-        log.warning(f"  ⚠️ Error procesando Ship Quantity: {e_qty}")
+                            input_ship.fill(qty_val)
+                            filas_procesadas += 1
+                            log.info(f"  ✅ Ship Quantity (fila {filas_procesadas}): {qty_val}")
+                        except Exception as e_f:
+                            log.warning(f"  ⚠️ Error rellenando fila {r_idx}: {e_f}")
+
+                if filas_procesadas > 0:
+                    break
+        except Exception as e_qty:
+            log.warning(f"  ⚠️ Error procesando Ship Quantity: {e_qty}")
+
+    if filas_procesadas == 0:
+        log.warning("  ⚠️ No se encontraron campos de Ship Quantity en esta orden.")
 
     return exito
 
